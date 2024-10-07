@@ -1,4 +1,5 @@
 use config::Config;
+use create_tables::create_tables;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::str::FromStr;
 use tower_http::services::{ServeDir, ServeFile};
@@ -33,14 +34,18 @@ async fn main() {
         .expect("Unable to parse connection url")
         .create_if_missing(true);
 
-    let connection_pool = SqlitePoolOptions::new()
+    let connection_pool = match SqlitePoolOptions::new()
         .max_connections(5)
         .connect_with(connection_options)
-        .await;
+        .await
+    {
+        Ok(val) => val,
+        Err(e) => panic!("Unable to create connection pool due to {}", e),
+    };
 
-    if let Err(e) = connection_pool {
-        panic!("{}", e);
-    }
+    create_tables(connection_pool)
+        .await
+        .expect("Unable to create tables");
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
         .await
