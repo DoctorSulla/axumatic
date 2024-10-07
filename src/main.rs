@@ -1,7 +1,7 @@
-use std::str::FromStr;
-
 use config::Config;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use std::str::FromStr;
+use tower_http::services::{ServeDir, ServeFile};
 use tracing::{event, span, Level};
 use tracing_subscriber;
 
@@ -25,7 +25,9 @@ async fn main() {
         database_file: "./database.db",
     };
 
-    let app = routes::get_routes();
+    let assets = ServeDir::new("assets").not_found_service(ServeFile::new("assets/404.html"));
+
+    let app = routes::get_routes().nest_service("/assets", assets);
 
     let connection_options = SqliteConnectOptions::from_str(config.database_file)
         .expect("Unable to parse connection url")
