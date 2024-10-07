@@ -2,15 +2,21 @@ use std::str::FromStr;
 
 use config::Config;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use tracing::{event, span, Level};
 
 mod config;
 mod create_tables;
 mod middleware;
 mod route_handlers;
 mod routes;
+mod tests;
 
 #[tokio::main]
 async fn main() {
+    let span = span!(Level::INFO, "main_span");
+    let _ = span.enter();
+
+    event!(Level::INFO, "Creating database");
     let config = Config {
         database_file: "./database.db",
     };
