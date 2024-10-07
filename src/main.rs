@@ -3,6 +3,7 @@ use std::str::FromStr;
 use config::Config;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use tracing::{event, span, Level};
+use tracing_subscriber;
 
 mod config;
 mod create_tables;
@@ -13,6 +14,9 @@ mod tests;
 
 #[tokio::main]
 async fn main() {
+    let _ = tracing_subscriber::FmtSubscriber::builder()
+        .with_ansi(true)
+        .init();
     let span = span!(Level::INFO, "main_span");
     let _ = span.enter();
 
