@@ -13,9 +13,10 @@ auth_level INTEGER DEFAULT 0
     .execute(&pool)
     .await?;
 
-    let _activation_codes = sqlx::query(
-        "CREATE TABLE IF NOT EXISTS activation_codes(
+    let _codes = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS codes(
 id INTEGER AUTO_INCREMENT PRIMARY KEY,
+code_type VARCHAR(20),
 email VARCHAR(100),
 code VARCHAR(30),
 created_ts VARCHAR(30),

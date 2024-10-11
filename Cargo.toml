@@ -5,9 +5,11 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.89"
+argon2 = "0.5.3"
 axum = "0.7.7"
 chrono = "0.4.38"
 lettre = { version = "0.11.9", features = ["smtp-transport"] }
+password-hash = "0.5.0"
 rand = "0.8.5"
 serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1.0.128"

@@ -12,6 +12,7 @@ mod middleware;
 mod route_handlers;
 mod routes;
 mod tests;
+mod utilities;
 
 #[tokio::main]
 async fn main() {
