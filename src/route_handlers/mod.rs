@@ -1,9 +1,12 @@
-use axum::extract::Json;
+use axum::extract::{Json, State};
 use axum::response::IntoResponse;
 use axum::{http::StatusCode, response::Html};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use thiserror::Error;
 use validations::*;
+
+use crate::AppState;
 
 mod validations;
 
@@ -12,14 +15,18 @@ pub struct AppError(anyhow::Error);
 // Use this enum for errors specific to our app
 #[derive(Error, Debug)]
 pub enum ErrorList {
-    #[error("Email must contain an @ and be greater than 3 characters")]
+    #[error("Email must contain an @, be greater than 3 characters and less than 300 characters")]
     InvalidEmail,
-    #[error("Password must be between 8 and 50 characters")]
+    #[error("Password must be between 8 and 100 characters")]
     InvalidPassword,
+    #[error("Username must be between 3 and 100 characters")]
+    InvalidUsername,
     #[error("Your passwords do not match")]
     NonMatchingPasswords,
     #[error("That email is already registered")]
     EmailAlreadyRegistered,
+    #[error("That username is already registered")]
+    UsernameAlreadyRegistered,
 }
 
 // Convert every AppError into a status code and its display impl
@@ -69,13 +76,22 @@ pub async fn hello_world() -> Result<Html<String>, AppError> {
 }
 
 pub async fn register(
+    State(state): State<Arc<AppState>>,
     Json(registration_details): Json<RegistrationDetails>,
 ) -> Result<Html<String>, AppError> {
     validate_email(&registration_details.email)?;
+    validate_username(&registration_details.username)?;
     validate_password(&registration_details.password)?;
+    is_unique(
+        &registration_details.username,
+        &registration_details.email,
+        state,
+    )
+    .await?;
     if registration_details.password != registration_details.confirm_password {
         return Err(ErrorList::NonMatchingPasswords.into());
     }
+
     Ok(Html("Test".to_string()))
 }
 

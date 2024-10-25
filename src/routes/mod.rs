@@ -1,10 +1,11 @@
-use crate::route_handlers;
+use crate::{route_handlers, AppState};
 use axum::{
     routing::{get, post},
     Router,
 };
+use std::sync::Arc;
 
-pub fn get_routes() -> Router {
+pub fn get_routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/", get(route_handlers::hello_world))
         .route("/account/register", post(route_handlers::register))
