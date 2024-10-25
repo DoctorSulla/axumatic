@@ -1,6 +1,48 @@
 use axum::extract::Json;
+use axum::response::IntoResponse;
 use axum::{http::StatusCode, response::Html};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
+use validations::*;
+
+mod validations;
+
+pub struct AppError(anyhow::Error);
+
+// Use this enum for errors specific to our app
+#[derive(Error, Debug)]
+pub enum ErrorList {
+    #[error("Email must contain an @ and be greater than 3 characters")]
+    InvalidEmail,
+    #[error("Password must be between 8 and 50 characters")]
+    InvalidPassword,
+    #[error("Your passwords do not match")]
+    NonMatchingPasswords,
+    #[error("That email is already registered")]
+    EmailAlreadyRegistered,
+}
+
+// Convert every AppError into a status code and its display impl
+impl IntoResponse for AppError {
+    fn into_response(self) -> axum::response::Response {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Internal server error: {}", self.0),
+        )
+            .into_response()
+    }
+}
+
+// Generic implementation to convert to AppError for anything which
+// implements <Into anyhow:Error>
+impl<E> From<E> for AppError
+where
+    E: Into<anyhow::Error>,
+{
+    fn from(err: E) -> Self {
+        Self(err.into())
+    }
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct RegistrationDetails {
@@ -22,14 +64,19 @@ pub struct ChangePassword {
     confirm_password: String,
 }
 
-pub async fn hello_world() -> Result<Html<String>, StatusCode> {
+pub async fn hello_world() -> Result<Html<String>, AppError> {
     Ok(Html("Hello World".to_string()))
 }
 
 pub async fn register(
     Json(registration_details): Json<RegistrationDetails>,
-) -> Result<Html<String>, StatusCode> {
-    Ok(Html(registration_details.email))
+) -> Result<Html<String>, AppError> {
+    validate_email(&registration_details.email)?;
+    validate_password(&registration_details.password)?;
+    if registration_details.password != registration_details.confirm_password {
+        return Err(ErrorList::NonMatchingPasswords.into());
+    }
+    Ok(Html("Test".to_string()))
 }
 
 pub async fn login() -> Result<Html<String>, StatusCode> {

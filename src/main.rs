@@ -1,8 +1,9 @@
 use config::Config;
 use create_tables::create_tables;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
-use std::str::FromStr;
+use std::{str::FromStr, time::Duration};
 use tower_http::services::{ServeDir, ServeFile};
+use tower_http::timeout::TimeoutLayer;
 use tracing::{event, span, Level};
 use tracing_subscriber;
 
@@ -29,7 +30,9 @@ async fn main() {
 
     let assets = ServeDir::new("assets").not_found_service(ServeFile::new("assets/404.html"));
 
-    let app = routes::get_routes().nest_service("/assets", assets);
+    let app = routes::get_routes()
+        .nest_service("/assets", assets)
+        .layer(TimeoutLayer::new(Duration::from_secs(30)));
 
     let connection_options = SqliteConnectOptions::from_str(config.database_file)
         .expect("Unable to parse connection url")

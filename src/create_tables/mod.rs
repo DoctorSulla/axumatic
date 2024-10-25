@@ -7,6 +7,7 @@ pub async fn create_tables(pool: SqlitePool) -> Result<(), Error> {
 email VARCHAR(100) unique,
 username VARCHAR(50) unique PRIMARY KEY,
 hashed_password VARCHAR(100),
+login_attempts INTEGER,
 auth_level INTEGER DEFAULT 0
 )",
     )
