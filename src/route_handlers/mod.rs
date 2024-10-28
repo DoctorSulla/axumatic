@@ -92,7 +92,7 @@ pub async fn register(
         return Err(ErrorList::NonMatchingPasswords.into());
     }
 
-    sqlx::query("INSERT INTO USERS(email,username,hashed_password) values(?,?,?,?")
+    sqlx::query("INSERT INTO USERS(email,username,hashed_password) values(?,?,?)")
         .bind(registration_details.email)
         .bind(registration_details.username)
         .bind(crate::utilities::hash_password(

@@ -40,7 +40,7 @@ async fn main() {
         .create_if_missing(true);
 
     let connection_pool = match SqlitePoolOptions::new()
-        .max_connections(5)
+        .max_connections(20)
         .connect_with(connection_options)
         .await
     {
