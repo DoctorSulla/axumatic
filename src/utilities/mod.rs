@@ -4,7 +4,7 @@ use argon2::{
 };
 use rand::{thread_rng, Rng};
 
-pub fn _hash_password(password: &str) -> String {
+pub fn hash_password(password: &str) -> String {
     let salt = SaltString::generate(&mut OsRng);
 
     let argon2 = Argon2::default();
@@ -17,7 +17,7 @@ pub fn _hash_password(password: &str) -> String {
 
 pub fn _verify_password(hash: &str, password: &str) -> bool {
     let argon2 = Argon2::default();
-    let password_hash = PasswordHash::new(&hash).expect("Unable to parse hash");
+    let password_hash = PasswordHash::new(hash).expect("Unable to parse hash");
     match argon2.verify_password(password.as_bytes(), &password_hash) {
         Ok(_i) => true,
         Err(_e) => false,

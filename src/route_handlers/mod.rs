@@ -85,14 +85,23 @@ pub async fn register(
     is_unique(
         &registration_details.username,
         &registration_details.email,
-        state,
+        state.clone(),
     )
     .await?;
     if registration_details.password != registration_details.confirm_password {
         return Err(ErrorList::NonMatchingPasswords.into());
     }
 
-    Ok(Html("Test".to_string()))
+    sqlx::query("INSERT INTO USERS(email,username,hashed_password) values(?,?,?,?")
+        .bind(registration_details.email)
+        .bind(registration_details.username)
+        .bind(crate::utilities::hash_password(
+            registration_details.password.as_str(),
+        ))
+        .execute(&state.connection_pool)
+        .await?;
+
+    Ok(Html("Registration successful".to_string()))
 }
 
 pub async fn login() -> Result<Html<String>, StatusCode> {

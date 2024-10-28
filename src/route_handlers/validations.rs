@@ -3,21 +3,21 @@ use std::sync::Arc;
 
 use super::ErrorList;
 
-pub fn validate_email(email: &String) -> Result<bool, ErrorList> {
+pub fn validate_email(email: &str) -> Result<bool, ErrorList> {
     if email.contains('@') && email.len() > 3 {
         return Ok(true);
     }
     Err(ErrorList::InvalidEmail)
 }
 
-pub fn validate_password(password: &String) -> Result<bool, ErrorList> {
+pub fn validate_password(password: &str) -> Result<bool, ErrorList> {
     if password.len() < 8 && password.len() < 100 {
         return Ok(true);
     }
     Err(ErrorList::InvalidPassword)
 }
 
-pub fn validate_username(username: &String) -> Result<bool, ErrorList> {
+pub fn validate_username(username: &str) -> Result<bool, ErrorList> {
     if username.len() < 3 && username.len() < 100 {
         return Ok(true);
     }

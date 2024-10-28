@@ -8,7 +8,6 @@ use std::{str::FromStr, time::Duration};
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::timeout::TimeoutLayer;
 use tracing::{event, span, Level};
-use tracing_subscriber;
 
 mod config;
 mod create_tables;
@@ -25,7 +24,7 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
-    let _ = tracing_subscriber::FmtSubscriber::builder()
+    tracing_subscriber::FmtSubscriber::builder()
         .with_ansi(true)
         .init();
     let span = span!(Level::INFO, "main_span");
