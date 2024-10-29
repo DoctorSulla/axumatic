@@ -157,6 +157,7 @@ dependencies = [
  "argon2",
  "axum",
  "chrono",
+ "http",
  "lettre",
  "password-hash",
  "rand",

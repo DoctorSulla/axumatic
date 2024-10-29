@@ -1,11 +1,15 @@
 use axum::extract::{Json, State};
 use axum::response::IntoResponse;
 use axum::{http::StatusCode, response::Html};
+use http::header;
+use http::header::HeaderMap;
 use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
 use std::sync::Arc;
 use thiserror::Error;
 use validations::*;
 
+use crate::utilities::{generate_unique_id, verify_password};
 use crate::AppState;
 
 mod validations;
@@ -59,6 +63,13 @@ pub struct RegistrationDetails {
     confirm_password: String,
 }
 
+#[derive(Serialize, Deserialize, FromRow)]
+pub struct User {
+    username: String,
+    email: String,
+    hashed_password: String,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct LoginDetails {
     email: String,
@@ -104,8 +115,27 @@ pub async fn register(
     Ok(Html("Registration successful".to_string()))
 }
 
-pub async fn login() -> Result<Html<String>, StatusCode> {
-    Ok(Html("Login".to_string()))
+pub async fn login(
+    State(state): State<Arc<AppState>>,
+    Json(login_details): Json<LoginDetails>,
+) -> Result<(HeaderMap, Html<String>), AppError> {
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = ?")
+        .bind(login_details.email)
+        .fetch_optional(&state.connection_pool)
+        .await?;
+    let user = match user {
+        Some(i) => i,
+        None => return Err(ErrorList::InvalidUsername.into()),
+    };
+    let mut header_map = HeaderMap::new();
+    if verify_password(&user.hashed_password, &login_details.password) {
+        header_map.insert(
+            header::SET_COOKIE,
+            header::HeaderValue::from_str(format!("session={}", generate_unique_id(100)).as_str())?,
+        );
+        return Ok((header_map, Html("Login successful".to_string())));
+    }
+    return Err(ErrorList::InvalidPassword.into());
 }
 
 pub async fn verify_email() -> Result<Html<String>, StatusCode> {

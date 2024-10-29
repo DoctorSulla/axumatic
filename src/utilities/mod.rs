@@ -15,7 +15,7 @@ pub fn hash_password(password: &str) -> String {
         .to_string()
 }
 
-pub fn _verify_password(hash: &str, password: &str) -> bool {
+pub fn verify_password(hash: &str, password: &str) -> bool {
     let argon2 = Argon2::default();
     let password_hash = PasswordHash::new(hash).expect("Unable to parse hash");
     match argon2.verify_password(password.as_bytes(), &password_hash) {
@@ -24,7 +24,7 @@ pub fn _verify_password(hash: &str, password: &str) -> bool {
     }
 }
 
-pub fn _generate_unique_id(length: u8) -> String {
+pub fn generate_unique_id(length: u8) -> String {
     let mut id = String::new();
     let mut rng = thread_rng();
     let character_set: [char; 36] = [

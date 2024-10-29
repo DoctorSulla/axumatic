@@ -15,6 +15,17 @@ PRIMARY KEY(email,username)
     .execute(&pool)
     .await?;
 
+    let _users = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS sessions(
+session_key VARCHAR(100),
+username VARHCAR(50),
+expiry INTEGER
+PRIMARY KEY(session_key)
+)",
+    )
+    .execute(&pool)
+    .await?;
+
     let _codes = sqlx::query(
         "CREATE TABLE IF NOT EXISTS codes(
 id INTEGER AUTO_INCREMENT PRIMARY KEY,
