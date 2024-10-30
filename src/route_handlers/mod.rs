@@ -31,6 +31,10 @@ pub enum ErrorList {
     EmailAlreadyRegistered,
     #[error("That username is already registered")]
     UsernameAlreadyRegistered,
+    #[error("Incorrect password")]
+    IncorrectPassword,
+    #[error("Incorrect username")]
+    IncorrectUsername,
 }
 
 // Convert every AppError into a status code and its display impl
@@ -125,17 +129,23 @@ pub async fn login(
         .await?;
     let user = match user {
         Some(i) => i,
-        None => return Err(ErrorList::InvalidUsername.into()),
+        None => return Err(ErrorList::IncorrectUsername.into()),
     };
     let mut header_map = HeaderMap::new();
     if verify_password(&user.hashed_password, &login_details.password) {
         header_map.insert(
             header::SET_COOKIE,
-            header::HeaderValue::from_str(format!("session={}", generate_unique_id(100)).as_str())?,
+            header::HeaderValue::from_str(
+                format!(
+                    "session-key={};HttpOnly;Max-Age=8640000",
+                    generate_unique_id(100)
+                )
+                .as_str(),
+            )?,
         );
         return Ok((header_map, Html("Login successful".to_string())));
     }
-    return Err(ErrorList::InvalidPassword.into());
+    return Err(ErrorList::IncorrectPassword.into());
 }
 
 pub async fn verify_email() -> Result<Html<String>, StatusCode> {
