@@ -1,0 +1,38 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+	<title>Login</title>
+
+	<style>
+	</style>
+	<script>
+		document.addEventListener("DOMContentLoaded", function () {
+			let forms = document.querySelectorAll("form");
+			for (let form of forms) {
+				form.addEventListener("submit", function (e) {
+					e.preventDefault();
+					const action = this.action;
+					const method = this.method;
+					let payload = {};
+					let fields = this.querySelectorAll("input");
+					for (let field of fields) {
+						payload[field.id] = field.value;
+					}
+					console.log(payload);
+				})
+			}
+		})
+
+	</script>
+</head>
+
+<body>
+	<form method="post" id="login-form" action="/account/login">
+		<input type="text" id="email">
+		<input type="password" id="password">
+		<button type="submit">Login</button>
+	</form>
+</body>
+
+</html>
