@@ -87,7 +87,7 @@ pub struct ChangePassword {
 }
 
 pub async fn hello_world() -> Result<Html<String>, AppError> {
-    Ok(Html("Hello World".to_string()))
+    Ok(Html("Hello, what are you doing?".to_string()))
 }
 
 pub async fn register(

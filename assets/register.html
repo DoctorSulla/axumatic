@@ -1,22 +1,29 @@
-<!DOCTYPE HTML>
+<!doctype html>
 <html>
+    <head>
+        <title>Register</title>
 
-<head>
-	<title>Register</title>
+        <link rel="stylesheet" href="/assets/css/main.css" />
+        <script src="/assets/js/main.js"></script>
+    </head>
 
-	<style>
-	</style>
-	<script src="/assets/js/main.js"></script>
-</head>
-
-<body>
-	<form method="post" id="login-form" action="/account/register">
-		<input type="text" id="email">
-		<input type="text" id="username">
-		<input type="password" id="password">
-		<input type="password" id="confirm_password">
-		<button type="submit">Register</button>
-	</form>
-</body>
-
+    <body>
+        <form
+            class="auth-form"
+            method="post"
+            id="registration-form"
+            action="/account/register"
+        >
+            <h2>Register</h2>
+            <input type="text" id="email" placeholder="Email address" />
+            <input type="text" id="username" placeholder="Username" />
+            <input type="password" id="password" placeholder="Password" />
+            <input
+                type="password"
+                id="confirm_password"
+                placeholder="Confirm password"
+            />
+            <button type="submit">Register</button>
+        </form>
+    </body>
 </html>

@@ -1,20 +1,23 @@
-<!DOCTYPE HTML>
+<!doctype html>
 <html>
+    <head>
+        <title>Login</title>
 
-<head>
-	<title>Login</title>
+        <script src="/assets/js/main.js"></script>
+        <link rel="stylesheet" href="/assets/css/main.css" />
+    </head>
 
-	<style>
-	</style>
-	<script src="/assets/js/main.js"></script>
-</head>
-
-<body>
-	<form method="post" id="login-form" action="/account/login">
-		<input type="text" id="email">
-		<input type="password" id="password">
-		<button type="submit">Login</button>
-	</form>
-</body>
-
+    <body>
+        <form
+            class="auth-form"
+            method="post"
+            id="login-form"
+            action="/account/login"
+        >
+            <h2>Login</h2>
+            <input type="text" id="email" placeholder="Email" />
+            <input type="password" id="password" placeholder="Password" />
+            <button type="submit">Login</button>
+        </form>
+    </body>
 </html>
