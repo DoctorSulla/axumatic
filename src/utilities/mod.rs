@@ -2,7 +2,40 @@ use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
+use lettre::{
+    transport::smtp::{
+        authentication::{Credentials, Mechanism},
+        PoolConfig,
+    },
+    Message, SmtpTransport, Transport,
+};
 use rand::{thread_rng, Rng};
+
+pub async fn _send_email() -> Result<(), anyhow::Error> {
+    let email = Message::builder()
+        .from("NoBody <nobody@domain.tld>".parse()?)
+        .reply_to("Yuin <yuin@domain.tld>".parse()?)
+        .to("Hei <hei@domain.tld>".parse()?)
+        .subject("Happy new year")
+        .body(String::from("Be happy!"))?;
+
+    // Create TLS transport on port 587 with STARTTLS
+    let sender = SmtpTransport::starttls_relay("smtp.example.com")?
+        // Add credentials for authentication
+        .credentials(Credentials::new(
+            "username".to_owned(),
+            "password".to_owned(),
+        ))
+        // Configure expected authentication mechanism
+        .authentication(vec![Mechanism::Plain])
+        // Connection pool settings
+        .pool_config(PoolConfig::new().max_size(20))
+        .build();
+
+    // Send the email via remote relay
+    let _ = sender.send(&email);
+    Ok(())
+}
 
 pub fn hash_password(password: &str) -> String {
     let salt = SaltString::generate(&mut OsRng);

@@ -1,6 +1,7 @@
 use axum::extract::{Json, State};
 use axum::response::IntoResponse;
 use axum::{http::StatusCode, response::Html};
+use chrono::Utc;
 use http::header;
 use http::header::HeaderMap;
 use serde::{Deserialize, Serialize};
@@ -133,16 +134,19 @@ pub async fn login(
     };
     let mut header_map = HeaderMap::new();
     if verify_password(&user.hashed_password, &login_details.password) {
+        let session_key = generate_unique_id(100);
         header_map.insert(
             header::SET_COOKIE,
             header::HeaderValue::from_str(
-                format!(
-                    "session-key={};HttpOnly;Max-Age=8640000",
-                    generate_unique_id(100)
-                )
-                .as_str(),
+                format!("session-key={};HttpOnly;Max-Age=8640000", session_key).as_str(),
             )?,
         );
+        let expiry = Utc::now().timestamp() + (1000 * 24 * 60 * 60);
+        sqlx::query("INSERT INTO sessions(session_key, expiry_date) values(?, ?)")
+            .bind(session_key)
+            .bind(expiry)
+            .execute(&state.connection_pool)
+            .await?;
         return Ok((header_map, Html("Login successful".to_string())));
     }
     return Err(ErrorList::IncorrectPassword.into());
