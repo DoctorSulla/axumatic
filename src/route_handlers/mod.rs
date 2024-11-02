@@ -10,7 +10,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use validations::*;
 
-use crate::utilities::{generate_unique_id, verify_password};
+use crate::utilities::{generate_unique_id, send_email, verify_password, Email};
 use crate::AppState;
 
 mod validations;
@@ -109,13 +109,22 @@ pub async fn register(
     }
 
     sqlx::query("INSERT INTO USERS(email,username,hashed_password) values(?,?,?)")
-        .bind(registration_details.email)
-        .bind(registration_details.username)
+        .bind(&registration_details.email)
+        .bind(&registration_details.username)
         .bind(crate::utilities::hash_password(
             registration_details.password.as_str(),
         ))
         .execute(&state.connection_pool)
         .await?;
+
+    let email = Email {
+        to: "user@gmail.com",
+        from: "registration@tld.com",
+        subject: String::from("Verify your email"),
+        body: String::from("Your verification code is ABCD1234"),
+        reply_to: None,
+    };
+    send_email(state, email).await?;
 
     Ok(Html("Registration successful".to_string()))
 }

@@ -10,26 +10,37 @@ use lettre::{
     Message, SmtpTransport, Transport,
 };
 use rand::{thread_rng, Rng};
+use std::sync::Arc;
 
-pub async fn _send_email() -> Result<(), anyhow::Error> {
+use crate::AppState;
+
+pub struct Email {
+    pub from: &'static str,
+    pub reply_to: Option<&'static str>,
+    pub to: &'static str,
+    pub subject: String,
+    pub body: String,
+}
+
+pub async fn send_email(state: Arc<AppState>, email: Email) -> Result<(), anyhow::Error> {
     let email = Message::builder()
-        .from("NoBody <nobody@domain.tld>".parse()?)
-        .reply_to("Yuin <yuin@domain.tld>".parse()?)
-        .to("Hei <hei@domain.tld>".parse()?)
-        .subject("Happy new year")
-        .body(String::from("Be happy!"))?;
+        .from(email.from.parse()?)
+        .reply_to(email.reply_to.unwrap_or_default().parse()?)
+        .to(email.to.parse()?)
+        .subject(email.subject)
+        .body(email.body)?;
 
     // Create TLS transport on port 587 with STARTTLS
-    let sender = SmtpTransport::starttls_relay("smtp.example.com")?
+    let sender = SmtpTransport::starttls_relay(&state.config.email.server_url)?
         // Add credentials for authentication
         .credentials(Credentials::new(
-            "username".to_owned(),
-            "password".to_owned(),
+            state.config.email.username.to_owned(),
+            state.config.email.password.to_owned(),
         ))
         // Configure expected authentication mechanism
         .authentication(vec![Mechanism::Plain])
         // Connection pool settings
-        .pool_config(PoolConfig::new().max_size(20))
+        .pool_config(PoolConfig::new().max_size(state.config.email.pool_size))
         .build();
 
     // Send the email via remote relay

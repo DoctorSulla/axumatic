@@ -3,6 +3,8 @@ use create_tables::create_tables;
 use routes::get_routes;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite};
+use std::fs::File;
+use std::io::prelude::*;
 use std::sync::Arc;
 use std::{str::FromStr, time::Duration};
 use tower_http::services::{ServeDir, ServeFile};
@@ -20,27 +22,34 @@ mod utilities;
 #[derive(Clone)]
 struct AppState {
     connection_pool: Pool<Sqlite>,
+    config: Config,
 }
 
 #[tokio::main]
 async fn main() {
+    // Start tracing
     tracing_subscriber::FmtSubscriber::builder()
         .with_ansi(true)
         .init();
     let span = span!(Level::INFO, "main_span");
     let _ = span.enter();
 
-    event!(Level::INFO, "Creating database");
-    let config = Config {
-        database_file: "./database.db",
-    };
+    // Open and parse the config file
+    let mut file = File::open("./config.toml").expect("Couldn't open config file");
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)
+        .expect("Couldn't convert config file to string");
 
-    let connection_options = SqliteConnectOptions::from_str(config.database_file)
-        .expect("Unable to parse connection url")
+    let config: Config = toml::from_str(contents.as_str()).expect("Couldn't parse config");
+
+    // Create the database and connection pool
+    event!(Level::INFO, "Creating database");
+    let connection_options = SqliteConnectOptions::from_str(&config.database.file)
+        .expect("Unable to open or create database")
         .create_if_missing(true);
 
     let connection_pool = match SqlitePoolOptions::new()
-        .max_connections(20)
+        .max_connections(config.database.pool_size)
         .connect_with(connection_options)
         .await
     {
@@ -48,7 +57,10 @@ async fn main() {
         Err(e) => panic!("Unable to create connection pool due to {}", e),
     };
 
-    let app_state = Arc::new(AppState { connection_pool });
+    let app_state = Arc::new(AppState {
+        connection_pool,
+        config,
+    });
 
     create_tables(app_state.connection_pool.clone())
         .await
