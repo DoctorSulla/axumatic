@@ -31,7 +31,7 @@ pub async fn is_unique(
 ) -> Result<bool, ErrorList> {
     let username = sqlx::query("SELECT username FROM users WHERE username=?")
         .bind(username)
-        .fetch_optional(&state.connection_pool)
+        .fetch_optional(&state.db_connection_pool)
         .await;
 
     if let Ok(user) = username {
@@ -42,7 +42,7 @@ pub async fn is_unique(
 
     let email = sqlx::query("SELECT email FROM users WHERE email=?")
         .bind(email)
-        .fetch_optional(&state.connection_pool)
+        .fetch_optional(&state.db_connection_pool)
         .await;
 
     if let Ok(email) = email {

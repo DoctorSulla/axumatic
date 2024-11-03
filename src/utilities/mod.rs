@@ -2,13 +2,7 @@ use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
-use lettre::{
-    transport::smtp::{
-        authentication::{Credentials, Mechanism},
-        PoolConfig,
-    },
-    Message, SmtpTransport, Transport,
-};
+use lettre::{Message, Transport};
 use rand::{thread_rng, Rng};
 use std::sync::Arc;
 
@@ -30,21 +24,8 @@ pub async fn send_email<'a>(state: Arc<AppState>, email: Email<'a>) -> Result<()
         .subject(email.subject)
         .body(email.body)?;
 
-    // Create TLS transport on port 587 with STARTTLS
-    let sender = SmtpTransport::starttls_relay(&state.config.email.server_url)?
-        // Add credentials for authentication
-        .credentials(Credentials::new(
-            state.config.email.username.to_owned(),
-            state.config.email.password.to_owned(),
-        ))
-        // Configure expected authentication mechanism
-        .authentication(vec![Mechanism::Plain])
-        // Connection pool settings
-        .pool_config(PoolConfig::new().max_size(state.config.email.pool_size))
-        .build();
-
     // Send the email via remote relay
-    let _ = sender.send(&email);
+    let _ = state.email_connection_pool.send(&email);
     Ok(())
 }
 

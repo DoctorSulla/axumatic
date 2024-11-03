@@ -1,5 +1,8 @@
 use config::Config;
 use create_tables::create_tables;
+use lettre::transport::smtp::authentication::{Credentials, Mechanism};
+use lettre::transport::smtp::PoolConfig;
+use lettre::SmtpTransport;
 use routes::get_routes;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite};
@@ -21,7 +24,8 @@ mod utilities;
 
 #[derive(Clone)]
 struct AppState {
-    connection_pool: Pool<Sqlite>,
+    db_connection_pool: Pool<Sqlite>,
+    email_connection_pool: SmtpTransport,
     config: Config,
 }
 
@@ -42,13 +46,27 @@ async fn main() {
 
     let config: Config = toml::from_str(contents.as_str()).expect("Couldn't parse config");
 
+    // Create TLS transport on port 587 with STARTTLS
+    let email_connection_pool = SmtpTransport::starttls_relay(&config.email.server_url)
+        .expect("Unable to create email connection pool")
+        // Add credentials for authentication
+        .credentials(Credentials::new(
+            config.email.username.to_owned(),
+            config.email.password.to_owned(),
+        ))
+        // Configure expected authentication mechanism
+        .authentication(vec![Mechanism::Plain])
+        // Connection pool settings
+        .pool_config(PoolConfig::new().max_size(config.email.pool_size))
+        .build();
+
     // Create the database and connection pool
     event!(Level::INFO, "Creating database");
     let connection_options = SqliteConnectOptions::from_str(&config.database.file)
         .expect("Unable to open or create database")
         .create_if_missing(true);
 
-    let connection_pool = match SqlitePoolOptions::new()
+    let db_connection_pool = match SqlitePoolOptions::new()
         .max_connections(config.database.pool_size)
         .connect_with(connection_options)
         .await
@@ -58,11 +76,12 @@ async fn main() {
     };
 
     let app_state = Arc::new(AppState {
-        connection_pool,
+        db_connection_pool,
+        email_connection_pool,
         config,
     });
 
-    create_tables(app_state.connection_pool.clone())
+    create_tables(app_state.db_connection_pool.clone())
         .await
         .expect("Unable to create tables");
 

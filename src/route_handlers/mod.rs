@@ -95,6 +95,7 @@ pub async fn register(
     State(state): State<Arc<AppState>>,
     Json(registration_details): Json<RegistrationDetails>,
 ) -> Result<Html<String>, AppError> {
+    // Validate all the fields
     validate_email(&registration_details.email)?;
     validate_username(&registration_details.username)?;
     validate_password(&registration_details.password)?;
@@ -108,15 +109,17 @@ pub async fn register(
         return Err(ErrorList::NonMatchingPasswords.into());
     }
 
+    // Create a registration
     sqlx::query("INSERT INTO USERS(email,username,hashed_password) values(?,?,?)")
         .bind(&registration_details.email)
         .bind(&registration_details.username)
         .bind(crate::utilities::hash_password(
             registration_details.password.as_str(),
         ))
-        .execute(&state.connection_pool)
+        .execute(&state.db_connection_pool)
         .await?;
 
+    // Send an email
     let to = format!(
         "{} <{}>",
         registration_details.username, registration_details.email
@@ -140,7 +143,7 @@ pub async fn login(
 ) -> Result<(HeaderMap, Html<String>), AppError> {
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = ?")
         .bind(login_details.email)
-        .fetch_optional(&state.connection_pool)
+        .fetch_optional(&state.db_connection_pool)
         .await?;
     let user = match user {
         Some(i) => i,
@@ -159,7 +162,7 @@ pub async fn login(
         sqlx::query("INSERT INTO sessions(session_key, expiry_date) values(?, ?)")
             .bind(session_key)
             .bind(expiry)
-            .execute(&state.connection_pool)
+            .execute(&state.db_connection_pool)
             .await?;
         return Ok((header_map, Html("Login successful".to_string())));
     }
