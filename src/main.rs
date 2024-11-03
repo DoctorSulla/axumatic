@@ -26,7 +26,7 @@ mod utilities;
 struct AppState {
     db_connection_pool: Pool<Sqlite>,
     email_connection_pool: SmtpTransport,
-    config: Config,
+    //config: Config,
 }
 
 #[tokio::main]
@@ -78,7 +78,7 @@ async fn main() {
     let app_state = Arc::new(AppState {
         db_connection_pool,
         email_connection_pool,
-        config,
+        //config,
     });
 
     create_tables(app_state.db_connection_pool.clone())

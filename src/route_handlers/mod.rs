@@ -15,6 +15,19 @@ use crate::AppState;
 
 mod validations;
 
+#[derive(Debug)]
+pub enum CodeType {
+    EmailVerification,
+}
+
+impl Into<String> for CodeType {
+    fn into(self) -> String {
+        match self {
+            CodeType::EmailVerification => "EmailVerification".to_string(),
+        }
+    }
+}
+
 pub struct AppError(anyhow::Error);
 
 // Use this enum for errors specific to our app
@@ -36,6 +49,8 @@ pub enum ErrorList {
     IncorrectPassword,
     #[error("Incorrect username")]
     IncorrectUsername,
+    #[error("Invalid or expired verification code")]
+    InvalidVerificationCode,
 }
 
 // Convert every AppError into a status code and its display impl
@@ -87,6 +102,12 @@ pub struct ChangePassword {
     confirm_password: String,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct VerificationDetails {
+    email: String,
+    code: String,
+}
+
 pub async fn hello_world() -> Result<Html<String>, AppError> {
     Ok(Html("Hello, what are you doing?".to_string()))
 }
@@ -125,16 +146,47 @@ pub async fn register(
         registration_details.username, registration_details.email
     );
 
+    let code = generate_unique_id(8);
+
     let email = Email {
         to: to.as_str(),
         from: "registration@tld.com",
         subject: String::from("Verify your email"),
-        body: String::from("Your verification code is ABCD1234"),
+        body: format!(
+            "<p>Thank you for registering.</p> <p>Please verify for your email using the following code {}.</p>",
+            code
+        ),
         reply_to: None,
     };
-    send_email(state, email).await?;
+    add_code(
+        state.clone(),
+        &registration_details.email,
+        &code,
+        CodeType::EmailVerification,
+    )
+    .await?;
+    send_email(state.clone(), email).await?;
 
     Ok(Html("Registration successful".to_string()))
+}
+
+pub async fn add_code(
+    state: Arc<AppState>,
+    email: &String,
+    code: &String,
+    code_type: CodeType,
+) -> Result<(), anyhow::Error> {
+    let _created = sqlx::query(
+        "INSERT INTO CODES(code_type,email,code,created_ts,expiry_ts) values(?,?,?,?,?)",
+    )
+    .bind(Into::<String>::into(code_type))
+    .bind(email)
+    .bind(code)
+    .bind(Utc::now().timestamp())
+    .bind(Utc::now().timestamp() + 24 * 3600)
+    .execute(&state.db_connection_pool)
+    .await?;
+    Ok(())
 }
 
 pub async fn login(
@@ -169,12 +221,61 @@ pub async fn login(
     return Err(ErrorList::IncorrectPassword.into());
 }
 
-pub async fn verify_email() -> Result<Html<String>, StatusCode> {
-    Ok(Html("Verify Email".to_string()))
+pub async fn verify_email(
+    State(state): State<Arc<AppState>>,
+    Json(verification_details): Json<VerificationDetails>,
+) -> Result<Html<String>, AppError> {
+    let now = Utc::now().timestamp();
+
+    let code_exists = sqlx::query(
+        "SELECT 1 FROM codes WHERE code_type = 'EmailVerification' AND email = ? AND code = ? AND expiry_ts > ?"
+    )
+    .bind(&verification_details.email)
+    .bind(&verification_details.code)
+    .bind(now)
+    .fetch_optional(&state.db_connection_pool)
+    .await?;
+
+    if code_exists.is_none() {
+        return Err(ErrorList::InvalidVerificationCode.into());
+    }
+
+    sqlx::query("UPDATE users SET auth_level = 50 WHERE email = ?")
+        .bind(&verification_details.email)
+        .execute(&state.db_connection_pool)
+        .await?;
+
+    // Clean up used code
+    sqlx::query(
+        "UPDATE codes SET used = true WHERE email = ? AND code=? AND code_type='EmailVerification'",
+    )
+    .bind(&verification_details.email)
+    .bind(&verification_details.code)
+    .execute(&state.db_connection_pool)
+    .await?;
+
+    Ok(Html("Email successfully verified".to_string()))
 }
 
-pub async fn change_password() -> Result<Html<String>, StatusCode> {
-    Ok(Html("Change Password".to_string()))
+pub async fn change_password(
+    State(state): State<Arc<AppState>>,
+    Json(password_details): Json<ChangePassword>,
+) -> Result<Html<String>, AppError> {
+    validate_password(&password_details.password)?;
+
+    if password_details.password != password_details.confirm_password {
+        return Err(ErrorList::NonMatchingPasswords.into());
+    }
+
+    let hashed_password = crate::utilities::hash_password(&password_details.password);
+
+    sqlx::query("UPDATE users SET hashed_password = ? WHERE email = ?")
+        .bind(hashed_password)
+        .bind("example@email.com") // Would be replaced by authenticated user's email
+        .execute(&state.db_connection_pool)
+        .await?;
+
+    Ok(Html("Password successfully changed".to_string()))
 }
 
 pub async fn reset_password() -> Result<Html<String>, StatusCode> {
