@@ -117,8 +117,13 @@ pub async fn register(
         .execute(&state.connection_pool)
         .await?;
 
+    let to = format!(
+        "{} <{}>",
+        registration_details.username, registration_details.email
+    );
+
     let email = Email {
-        to: "user@gmail.com",
+        to: to.as_str(),
         from: "registration@tld.com",
         subject: String::from("Verify your email"),
         body: String::from("Your verification code is ABCD1234"),

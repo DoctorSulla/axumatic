@@ -14,15 +14,15 @@ use std::sync::Arc;
 
 use crate::AppState;
 
-pub struct Email {
-    pub from: &'static str,
-    pub reply_to: Option<&'static str>,
-    pub to: &'static str,
+pub struct Email<'a> {
+    pub from: &'a str,
+    pub reply_to: Option<&'a str>,
+    pub to: &'a str,
     pub subject: String,
     pub body: String,
 }
 
-pub async fn send_email(state: Arc<AppState>, email: Email) -> Result<(), anyhow::Error> {
+pub async fn send_email<'a>(state: Arc<AppState>, email: Email<'a>) -> Result<(), anyhow::Error> {
     let email = Message::builder()
         .from(email.from.parse()?)
         .reply_to(email.reply_to.unwrap_or_default().parse()?)
