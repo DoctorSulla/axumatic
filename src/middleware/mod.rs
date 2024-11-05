@@ -8,8 +8,8 @@ use tower::{Layer, Service};
 use crate::AppState;
 
 #[derive(Clone)]
-struct MyLayer {
-    state: Arc<AppState>,
+pub struct MyLayer {
+    pub state: Arc<AppState>,
 }
 
 impl<S> Layer<S> for MyLayer {
@@ -24,9 +24,9 @@ impl<S> Layer<S> for MyLayer {
 }
 
 #[derive(Clone)]
-struct ValidateSession<S> {
-    inner: S,
-    state: Arc<AppState>,
+pub struct ValidateSession<S> {
+    pub inner: S,
+    pub state: Arc<AppState>,
 }
 
 impl<S> Service<Request> for ValidateSession<S>
@@ -47,11 +47,6 @@ where
         let future = self.inner.call(request);
         Box::pin(async move {
             let mut response: Response = future.await?;
-            response.headers_mut().insert(
-                header::CONTENT_TYPE,
-                HeaderValue::from_str("application/json").unwrap(),
-            );
-
             Ok(response)
         })
     }
