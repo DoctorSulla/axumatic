@@ -1,6 +1,6 @@
-use axum::{body::Body, extract::Request, response::Response};
+use axum::{extract::Request, response::Response};
 use futures_util::future::BoxFuture;
-use http::{header, HeaderValue};
+use http::HeaderValue;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
@@ -8,11 +8,17 @@ use tower::{Layer, Service};
 use crate::AppState;
 
 #[derive(Clone)]
-pub struct MyLayer {
+pub struct ValidateSessionLayer {
     pub state: Arc<AppState>,
 }
 
-impl<S> Layer<S> for MyLayer {
+impl ValidateSessionLayer {
+    pub fn new(state: Arc<AppState>) -> Self {
+        Self { state }
+    }
+}
+
+impl<S> Layer<S> for ValidateSessionLayer {
     type Service = ValidateSession<S>;
 
     fn layer(&self, inner: S) -> Self::Service {
@@ -43,10 +49,13 @@ where
         self.inner.poll_ready(cx)
     }
 
-    fn call(&mut self, request: Request) -> Self::Future {
+    fn call(&mut self, mut request: Request) -> Self::Future {
+        request
+            .headers_mut()
+            .insert("user-id", HeaderValue::from_str("abcde").unwrap());
         let future = self.inner.call(request);
         Box::pin(async move {
-            let mut response: Response = future.await?;
+            let response: Response = future.await?;
             Ok(response)
         })
     }

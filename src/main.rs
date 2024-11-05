@@ -7,12 +7,14 @@ use lettre::{
     },
     SmtpTransport,
 };
+use middleware::ValidateSessionLayer;
 use routes::get_routes;
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
     Pool, Sqlite,
 };
 use std::{fs::File, io::prelude::*, str::FromStr, sync::Arc, time::Duration};
+use tower::ServiceBuilder;
 use tower_http::{
     services::{ServeDir, ServeFile},
     timeout::TimeoutLayer,
@@ -93,11 +95,12 @@ async fn main() {
     let assets = ServeDir::new("assets").not_found_service(ServeFile::new("assets/404.html"));
     let app = get_routes()
         .with_state(app_state.clone())
-        .nest_service("/assets", assets)
-        .layer(TimeoutLayer::new(Duration::from_secs(30)))
-        .layer(middleware::MyLayer {
-            state: app_state.clone(),
-        });
+        .layer(
+            ServiceBuilder::new()
+                .layer(TimeoutLayer::new(Duration::from_secs(30)))
+                .layer(ValidateSessionLayer::new(app_state.clone())),
+        )
+        .nest_service("/assets", assets);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
         .await

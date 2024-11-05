@@ -34,7 +34,7 @@ pub async fn create_tables(pool: SqlitePool) -> Result<(), Error> {
             code VARCHAR(30),
             created_ts VARCHAR(30),
             expiry_ts VARCHAR(30),
-            used INTEGER default 0,
+            used INTEGER default 0
         )",
     )
     .execute(&pool)

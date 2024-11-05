@@ -281,3 +281,14 @@ pub async fn change_password(
 pub async fn reset_password() -> Result<Html<String>, StatusCode> {
     Ok(Html("Reset Password".to_string()))
 }
+
+// Need to decide on proper error type for this to return
+pub async fn _validate_cookie(headers: &mut HeaderMap) -> Result<(), anyhow::Error> {
+    if let Some(cookies) = headers.get("cookie") {
+        // Should consider just using cookie crate
+        for cookie in cookies.to_str().unwrap().split(';') {
+            println!("{}", cookie);
+        }
+    }
+    Ok(())
+}
