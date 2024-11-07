@@ -1,11 +1,14 @@
-use axum::{extract::Request, response::Response};
+use axum::{
+    extract::Request,
+    response::{IntoResponse, Response},
+};
 use futures_util::future::BoxFuture;
 use http::HeaderValue;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
 
-use crate::AppState;
+use crate::{route_handlers::validate_cookie, AppState};
 
 #[derive(Clone)]
 pub struct ValidateSessionLayer {
@@ -37,7 +40,7 @@ pub struct ValidateSession<S> {
 
 impl<S> Service<Request> for ValidateSession<S>
 where
-    S: Service<Request, Response = Response> + Send + 'static,
+    S: Service<Request, Response = Response> + Send + 'static + Clone,
     S::Future: Send + 'static,
 {
     type Response = S::Response;
@@ -50,12 +53,19 @@ where
     }
 
     fn call(&mut self, mut request: Request) -> Self::Future {
-        request
-            .headers_mut()
-            .insert("user-id", HeaderValue::from_str("abcde").unwrap());
-        let future = self.inner.call(request);
+        let mut inner = self.inner.clone();
         Box::pin(async move {
-            let response: Response = future.await?;
+            let response: Response;
+            if let Ok(_user_id) = validate_cookie(request.headers()).await {
+                request
+                    .headers_mut()
+                    .insert("user-id", HeaderValue::from_str("abcd").unwrap());
+
+                let future = inner.call(request);
+                response = future.await?;
+            } else {
+                response = http::StatusCode::UNAUTHORIZED.into_response();
+            }
             Ok(response)
         })
     }

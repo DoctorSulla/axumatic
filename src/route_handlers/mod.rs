@@ -2,6 +2,7 @@ use axum::extract::{Json, State};
 use axum::response::IntoResponse;
 use axum::{http::StatusCode, response::Html};
 use chrono::Utc;
+use cookie::Cookie;
 use http::header;
 use http::header::HeaderMap;
 use serde::{Deserialize, Serialize};
@@ -283,11 +284,14 @@ pub async fn reset_password() -> Result<Html<String>, StatusCode> {
 }
 
 // Need to decide on proper error type for this to return
-pub async fn _validate_cookie(headers: &mut HeaderMap) -> Result<(), anyhow::Error> {
+pub async fn validate_cookie(headers: &HeaderMap) -> Result<(), anyhow::Error> {
     if let Some(cookies) = headers.get("cookie") {
         // Should consider just using cookie crate
-        for cookie in cookies.to_str().unwrap().split(';') {
-            println!("{}", cookie);
+        for cookie_string in cookies.to_str().unwrap().split(';') {
+            let cookie = Cookie::parse(cookie_string)?;
+            if cookie.name() == "session-key" {
+                return Ok(());
+            }
         }
     }
     Ok(())
