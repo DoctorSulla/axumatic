@@ -16,7 +16,7 @@ pub struct Email<'a> {
     pub body: String,
 }
 
-pub async fn send_email<'a>(state: Arc<AppState>, email: Email<'a>) -> Result<(), anyhow::Error> {
+pub async fn send_email(state: Arc<AppState>, email: Email<'_>) -> Result<(), anyhow::Error> {
     let email = Message::builder()
         .from(email.from.parse()?)
         .reply_to(email.reply_to.unwrap_or_default().parse()?)

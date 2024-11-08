@@ -16,22 +16,28 @@ use crate::AppState;
 
 mod validations;
 
+// String wrapper to allow derived impl of FromRow
+#[derive(FromRow)]
+pub struct Username(pub String);
+
+// Verification code types
 #[derive(Debug)]
 pub enum CodeType {
     EmailVerification,
 }
 
-impl Into<String> for CodeType {
-    fn into(self) -> String {
-        match self {
+impl From<CodeType> for String {
+    fn from(val: CodeType) -> Self {
+        match val {
             CodeType::EmailVerification => "EmailVerification".to_string(),
         }
     }
 }
 
+// Wrapper for anyhow to allow impl of IntoResponse
 pub struct AppError(anyhow::Error);
 
-// Use this enum for errors specific to our app
+// Errors specific to our app
 #[derive(Error, Debug)]
 pub enum ErrorList {
     #[error("Email must contain an @, be greater than 3 characters and less than 300 characters")]
@@ -52,6 +58,8 @@ pub enum ErrorList {
     IncorrectUsername,
     #[error("Invalid or expired verification code")]
     InvalidVerificationCode,
+    #[error("Unauthorised")]
+    Unauthorised,
 }
 
 // Convert every AppError into a status code and its display impl
@@ -219,7 +227,7 @@ pub async fn login(
             .await?;
         return Ok((header_map, Html("Login successful".to_string())));
     }
-    return Err(ErrorList::IncorrectPassword.into());
+    Err(ErrorList::IncorrectPassword.into())
 }
 
 pub async fn verify_email(
@@ -283,16 +291,27 @@ pub async fn reset_password() -> Result<Html<String>, StatusCode> {
     Ok(Html("Reset Password".to_string()))
 }
 
-// Need to decide on proper error type for this to return
-pub async fn validate_cookie(headers: &HeaderMap) -> Result<(), anyhow::Error> {
+pub async fn validate_cookie(
+    headers: &HeaderMap,
+    state: Arc<AppState>,
+) -> Result<Username, anyhow::Error> {
     if let Some(cookies) = headers.get("cookie") {
-        // Should consider just using cookie crate
         for cookie_string in cookies.to_str().unwrap().split(';') {
             let cookie = Cookie::parse(cookie_string)?;
             if cookie.name() == "session-key" {
-                return Ok(());
+                let session = sqlx::query_as::<_, Username>(
+                    "SELECT username FROM SESSIONS WHERE session_key=? AND expiry < ?",
+                )
+                .bind(cookie.value())
+                .bind(Utc::now().timestamp())
+                .fetch_optional(&state.db_connection_pool)
+                .await?;
+                if let Some(username) = session {
+                    return Ok(username);
+                }
+                return Err(ErrorList::Unauthorised.into());
             }
         }
     }
-    Ok(())
+    Err(ErrorList::Unauthorised.into())
 }

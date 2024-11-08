@@ -54,12 +54,15 @@ where
 
     fn call(&mut self, mut request: Request) -> Self::Future {
         let mut inner = self.inner.clone();
+        let state = self.state.clone();
+
         Box::pin(async move {
             let response: Response;
-            if let Ok(_user_id) = validate_cookie(request.headers()).await {
-                request
-                    .headers_mut()
-                    .insert("user-id", HeaderValue::from_str("abcd").unwrap());
+            if let Ok(username) = validate_cookie(request.headers(), state).await {
+                request.headers_mut().insert(
+                    "user-id",
+                    HeaderValue::from_str(username.0.as_str()).unwrap(),
+                );
 
                 let future = inner.call(request);
                 response = future.await?;
