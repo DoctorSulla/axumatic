@@ -5,11 +5,9 @@ use axum::{
 };
 use std::sync::Arc;
 
-pub fn get_routes() -> Router<Arc<AppState>> {
+pub fn get_protected_routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/", get(route_handlers::hello_world))
-        .route("/account/register", post(route_handlers::register))
-        .route("/account/login", post(route_handlers::login))
         .route("/account/verifyEmail", post(route_handlers::verify_email))
         .route(
             "/account/resetPassword",
@@ -19,4 +17,10 @@ pub fn get_routes() -> Router<Arc<AppState>> {
             "/account/changePassword",
             get(route_handlers::change_password),
         )
+}
+
+pub fn get_open_routes() -> Router<Arc<AppState>> {
+    Router::new()
+        .route("/account/register", post(route_handlers::register))
+        .route("/account/login", post(route_handlers::login))
 }

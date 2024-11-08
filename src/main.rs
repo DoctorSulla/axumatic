@@ -1,3 +1,4 @@
+use axum::Router;
 use config::Config;
 use create_tables::create_tables;
 use lettre::{
@@ -8,7 +9,7 @@ use lettre::{
     SmtpTransport,
 };
 use middleware::ValidateSessionLayer;
-use routes::get_routes;
+use routes::{get_open_routes, get_protected_routes};
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
     Pool, Sqlite,
@@ -33,7 +34,7 @@ mod utilities;
 struct AppState {
     db_connection_pool: Pool<Sqlite>,
     email_connection_pool: SmtpTransport,
-    //config: Config,
+    config: Config,
 }
 
 #[tokio::main]
@@ -85,7 +86,7 @@ async fn main() {
     let app_state = Arc::new(AppState {
         db_connection_pool,
         email_connection_pool,
-        //config,
+        config,
     });
 
     create_tables(app_state.db_connection_pool.clone())
@@ -93,16 +94,21 @@ async fn main() {
         .expect("Unable to create tables");
 
     let assets = ServeDir::new("assets").not_found_service(ServeFile::new("assets/404.html"));
-    let app = get_routes()
-        .with_state(app_state.clone())
-        .layer(
-            ServiceBuilder::new()
-                .layer(TimeoutLayer::new(Duration::from_secs(30)))
-                .layer(ValidateSessionLayer::new(app_state.clone())),
-        )
-        .nest_service("/assets", assets);
+    let protected_routes = get_protected_routes();
+    let open_routes = get_open_routes();
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
+    let app = Router::new()
+        .merge(protected_routes)
+        .layer(ServiceBuilder::new().layer(ValidateSessionLayer::new(app_state.clone())))
+        .merge(open_routes)
+        .with_state(app_state.clone())
+        .nest_service("/assets", assets)
+        .layer(
+            ServiceBuilder::new().layer(TimeoutLayer::new(Duration::from_secs(
+                app_state.config.server.request_timeout,
+            ))),
+        );
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", app_state.config.server.port))
         .await
         .unwrap();
     axum::serve(listener, app).await.unwrap();

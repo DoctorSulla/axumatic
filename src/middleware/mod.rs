@@ -60,7 +60,7 @@ where
             let response: Response;
             if let Ok(username) = validate_cookie(request.headers(), state).await {
                 request.headers_mut().insert(
-                    "user-id",
+                    "username",
                     HeaderValue::from_str(username.0.as_str()).unwrap(),
                 );
 

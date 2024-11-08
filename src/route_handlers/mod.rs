@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use std::sync::Arc;
 use thiserror::Error;
+use tracing::{event, Level};
 use validations::*;
 
 use crate::utilities::{generate_unique_id, send_email, verify_password, Email};
@@ -117,7 +118,8 @@ pub struct VerificationDetails {
     code: String,
 }
 
-pub async fn hello_world() -> Result<Html<String>, AppError> {
+pub async fn hello_world(headers: HeaderMap) -> Result<Html<String>, AppError> {
+    println!("{:?}", headers);
     Ok(Html("Hello, what are you doing?".to_string()))
 }
 
@@ -139,6 +141,13 @@ pub async fn register(
         return Err(ErrorList::NonMatchingPasswords.into());
     }
 
+    event!(
+        Level::INFO,
+        "Attempting to create registration for email {} and username {}",
+        registration_details.email,
+        registration_details.username
+    );
+
     // Create a registration
     sqlx::query("INSERT INTO USERS(email,username,hashed_password) values(?,?,?)")
         .bind(&registration_details.email)
@@ -148,6 +157,12 @@ pub async fn register(
         ))
         .execute(&state.db_connection_pool)
         .await?;
+
+    event!(
+        Level::INFO,
+        "Attempting to send a verification email to {}",
+        registration_details.email
+    );
 
     // Send an email
     let to = format!(
@@ -174,7 +189,7 @@ pub async fn register(
         CodeType::EmailVerification,
     )
     .await?;
-    send_email(state.clone(), email).await?;
+    //send_email(state.clone(), email).await?;
 
     Ok(Html("Registration successful".to_string()))
 }
@@ -220,8 +235,9 @@ pub async fn login(
             )?,
         );
         let expiry = Utc::now().timestamp() + (1000 * 24 * 60 * 60);
-        sqlx::query("INSERT INTO sessions(session_key, expiry_date) values(?, ?)")
+        sqlx::query("INSERT INTO sessions(session_key,username, expiry) values(?, ?, ?)")
             .bind(session_key)
+            .bind(user.username)
             .bind(expiry)
             .execute(&state.db_connection_pool)
             .await?;
@@ -300,7 +316,7 @@ pub async fn validate_cookie(
             let cookie = Cookie::parse(cookie_string)?;
             if cookie.name() == "session-key" {
                 let session = sqlx::query_as::<_, Username>(
-                    "SELECT username FROM SESSIONS WHERE session_key=? AND expiry < ?",
+                    "SELECT username FROM SESSIONS WHERE session_key=? AND expiry > ?",
                 )
                 .bind(cookie.value())
                 .bind(Utc::now().timestamp())
@@ -309,9 +325,15 @@ pub async fn validate_cookie(
                 if let Some(username) = session {
                     return Ok(username);
                 }
+                event!(
+                    Level::INFO,
+                    "Session key cookie was found but did not match a valid session"
+                );
                 return Err(ErrorList::Unauthorised.into());
             }
         }
     }
+
+    event!(Level::INFO, "No session key cookie was found");
     Err(ErrorList::Unauthorised.into())
 }
