@@ -1,20 +1,11 @@
 use axum::Router;
 use config::Config;
 use create_tables::create_tables;
-use lettre::{
-    transport::smtp::{
-        authentication::{Credentials, Mechanism},
-        PoolConfig,
-    },
-    SmtpTransport,
-};
+use lettre::SmtpTransport;
 use middleware::ValidateSessionLayer;
 use routes::{get_open_routes, get_protected_routes};
-use sqlx::{
-    sqlite::{SqliteConnectOptions, SqlitePoolOptions},
-    Pool, Sqlite,
-};
-use std::{fs::File, io::prelude::*, str::FromStr, sync::Arc, time::Duration};
+use sqlx::{Pool, Sqlite};
+use std::{sync::Arc, time::Duration};
 use tower::ServiceBuilder;
 use tower_http::{
     services::{ServeDir, ServeFile},
@@ -46,42 +37,14 @@ async fn main() {
     let span = span!(Level::INFO, "main_span");
     let _ = span.enter();
 
-    // Open and parse the config file
-    let mut file = File::open("./config.toml").expect("Couldn't open config file");
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)
-        .expect("Couldn't convert config file to string");
+    event!(Level::INFO, "Getting config from file");
+    let config = config::get_config();
 
-    let config: Config = toml::from_str(contents.as_str()).expect("Couldn't parse config");
+    event!(Level::INFO, "Creating email connection pool");
+    let email_connection_pool = config.get_email_pool();
 
-    // Create TLS transport on port 587 with STARTTLS
-    let email_connection_pool = SmtpTransport::starttls_relay(&config.email.server_url)
-        .expect("Unable to create email connection pool")
-        // Add credentials for authentication
-        .credentials(Credentials::new(
-            config.email.username.to_owned(),
-            config.email.password.to_owned(),
-        ))
-        // Configure expected authentication mechanism
-        .authentication(vec![Mechanism::Plain])
-        // Connection pool settings
-        .pool_config(PoolConfig::new().max_size(config.email.pool_size))
-        .build();
-
-    // Create the database and connection pool
-    event!(Level::INFO, "Creating database");
-    let connection_options = SqliteConnectOptions::from_str(&config.database.file)
-        .expect("Unable to open or create database")
-        .create_if_missing(true);
-
-    let db_connection_pool = match SqlitePoolOptions::new()
-        .max_connections(config.database.pool_size)
-        .connect_with(connection_options)
-        .await
-    {
-        Ok(val) => val,
-        Err(e) => panic!("Unable to create connection pool due to {}", e),
-    };
+    event!(Level::INFO, "Creating database connection pool");
+    let db_connection_pool = config.get_db_pool().await;
 
     let app_state = Arc::new(AppState {
         db_connection_pool,

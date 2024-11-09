@@ -1,4 +1,18 @@
+use lettre::{
+    transport::smtp::{
+        authentication::{Credentials, Mechanism},
+        PoolConfig,
+    },
+    SmtpTransport,
+};
 use serde::Deserialize;
+use std::str::FromStr;
+use std::{fs::File, io::prelude::*};
+
+use sqlx::{
+    sqlite::{SqliteConnectOptions, SqlitePoolOptions},
+    Pool, Sqlite,
+};
 
 #[derive(Deserialize, Clone)]
 pub struct Config {
@@ -25,4 +39,45 @@ pub struct SmtpConfig {
 pub struct ServerConfig {
     pub port: u16,
     pub request_timeout: u64,
+}
+
+pub fn get_config() -> Config {
+    // Open and parse the config file
+    let mut file = File::open("./config.toml").expect("Couldn't open config file");
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)
+        .expect("Couldn't convert config file to string");
+
+    toml::from_str(contents.as_str()).expect("Couldn't parse config")
+}
+
+impl Config {
+    pub fn get_email_pool(&self) -> SmtpTransport {
+        SmtpTransport::starttls_relay(self.email.server_url.as_str())
+            .expect("Unable to create email connection pool")
+            // Add credentials for authentication
+            .credentials(Credentials::new(
+                self.email.username.to_owned(),
+                self.email.password.to_owned(),
+            ))
+            // Configure expected authentication mechanism
+            .authentication(vec![Mechanism::Plain])
+            // Connection pool settings
+            .pool_config(PoolConfig::new().max_size(self.email.pool_size))
+            .build()
+    }
+
+    pub async fn get_db_pool(&self) -> Pool<Sqlite> {
+        let connection_options = SqliteConnectOptions::from_str(self.database.file.as_str())
+            .expect("Unable to open or create database")
+            .create_if_missing(true);
+        match SqlitePoolOptions::new()
+            .max_connections(self.database.pool_size)
+            .connect_with(connection_options)
+            .await
+        {
+            Ok(val) => val,
+            Err(e) => panic!("Unable to create connection pool due to {}", e),
+        }
+    }
 }
