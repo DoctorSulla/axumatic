@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
 
-use crate::{route_handlers::validate_cookie, AppState};
+use crate::{auth::validate_cookie, AppState};
 
 #[derive(Clone)]
 pub struct ValidateSessionLayer {

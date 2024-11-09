@@ -2,6 +2,7 @@ use axum::extract::{Json, State};
 use axum::response::IntoResponse;
 use axum::{http::StatusCode, response::Html};
 use chrono::Utc;
+use cookie::time::Duration;
 use cookie::Cookie;
 use http::header;
 use http::header::HeaderMap;
@@ -12,7 +13,7 @@ use thiserror::Error;
 use tracing::{event, Level};
 use validations::*;
 
-use crate::utilities::{generate_unique_id, send_email, verify_password, Email};
+use crate::utilities::*;
 use crate::AppState;
 
 mod validations;
@@ -152,9 +153,7 @@ pub async fn register(
     sqlx::query("INSERT INTO USERS(email,username,hashed_password) values(?,?,?)")
         .bind(&registration_details.email)
         .bind(&registration_details.username)
-        .bind(crate::utilities::hash_password(
-            registration_details.password.as_str(),
-        ))
+        .bind(hash_password(registration_details.password.as_str()))
         .execute(&state.db_connection_pool)
         .await?;
 
@@ -228,11 +227,13 @@ pub async fn login(
     let mut header_map = HeaderMap::new();
     if verify_password(&user.hashed_password, &login_details.password) {
         let session_key = generate_unique_id(100);
+        let session_cookie = Cookie::build(("session-key", &session_key))
+            .max_age(Duration::days(1000))
+            .http_only(true)
+            .build();
         header_map.insert(
             header::SET_COOKIE,
-            header::HeaderValue::from_str(
-                format!("session-key={};HttpOnly;Max-Age=8640000", session_key).as_str(),
-            )?,
+            session_cookie.to_string().parse().unwrap(),
         );
         let expiry = Utc::now().timestamp() + (1000 * 24 * 60 * 60);
         sqlx::query("INSERT INTO sessions(session_key,username, expiry) values(?, ?, ?)")
@@ -292,7 +293,7 @@ pub async fn change_password(
         return Err(ErrorList::NonMatchingPasswords.into());
     }
 
-    let hashed_password = crate::utilities::hash_password(&password_details.password);
+    let hashed_password = hash_password(&password_details.password);
 
     sqlx::query("UPDATE users SET hashed_password = ? WHERE email = ?")
         .bind(hashed_password)
@@ -305,35 +306,4 @@ pub async fn change_password(
 
 pub async fn reset_password() -> Result<Html<String>, StatusCode> {
     Ok(Html("Reset Password".to_string()))
-}
-
-pub async fn validate_cookie(
-    headers: &HeaderMap,
-    state: Arc<AppState>,
-) -> Result<Username, anyhow::Error> {
-    if let Some(cookies) = headers.get("cookie") {
-        for cookie_string in cookies.to_str().unwrap().split(';') {
-            let cookie = Cookie::parse(cookie_string)?;
-            if cookie.name() == "session-key" {
-                let session = sqlx::query_as::<_, Username>(
-                    "SELECT username FROM SESSIONS WHERE session_key=? AND expiry > ?",
-                )
-                .bind(cookie.value())
-                .bind(Utc::now().timestamp())
-                .fetch_optional(&state.db_connection_pool)
-                .await?;
-                if let Some(username) = session {
-                    return Ok(username);
-                }
-                event!(
-                    Level::INFO,
-                    "Session key cookie was found but did not match a valid session"
-                );
-                return Err(ErrorList::Unauthorised.into());
-            }
-        }
-    }
-
-    event!(Level::INFO, "No session key cookie was found");
-    Err(ErrorList::Unauthorised.into())
 }

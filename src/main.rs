@@ -1,6 +1,5 @@
 use axum::Router;
 use config::Config;
-use create_tables::create_tables;
 use lettre::SmtpTransport;
 use middleware::ValidateSessionLayer;
 use routes::*;
@@ -13,8 +12,8 @@ use tower_http::{
 };
 use tracing::{event, span, Level};
 
+mod auth;
 mod config;
-mod create_tables;
 mod middleware;
 mod route_handlers;
 mod routes;
@@ -54,7 +53,7 @@ async fn main() {
 
     event!(Level::INFO, "Creating tables");
 
-    sqlx::migrate!()
+    migrate!()
         .run(&app_state.db_connection_pool)
         .await
         .expect("Unable to complete migrations");
