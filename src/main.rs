@@ -3,8 +3,8 @@ use config::Config;
 use create_tables::create_tables;
 use lettre::SmtpTransport;
 use middleware::ValidateSessionLayer;
-use routes::{get_open_routes, get_protected_routes};
-use sqlx::{Pool, Sqlite};
+use routes::*;
+use sqlx::{migrate, Pool, Sqlite};
 use std::{sync::Arc, time::Duration};
 use tower::ServiceBuilder;
 use tower_http::{
@@ -52,9 +52,12 @@ async fn main() {
         config,
     });
 
-    create_tables(app_state.db_connection_pool.clone())
+    event!(Level::INFO, "Creating tables");
+
+    sqlx::migrate!()
+        .run(&app_state.db_connection_pool)
         .await
-        .expect("Unable to create tables");
+        .expect("Unable to complete migrations");
 
     let assets = ServeDir::new("assets").not_found_service(ServeFile::new("assets/404.html"));
     let protected_routes = get_protected_routes();
