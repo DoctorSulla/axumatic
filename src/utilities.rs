@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use crate::AppState;
 
+#[derive(Debug)]
 pub struct Email<'a> {
     pub from: &'a str,
     pub reply_to: Option<&'a str>,
@@ -15,15 +16,14 @@ pub struct Email<'a> {
     pub subject: String,
     pub body: String,
 }
-
 pub async fn send_email(state: Arc<AppState>, email: Email<'_>) -> Result<(), anyhow::Error> {
-    let email = Message::builder()
-        .from(email.from.parse()?)
-        .reply_to(email.reply_to.unwrap_or_default().parse()?)
-        .to(email.to.parse()?)
-        .subject(email.subject)
-        .body(email.body)?;
     println!("The email to be sent to the user is {:?}", email);
+    // let email = Message::builder()
+    //     .from(email.from.parse()?)
+    //     .reply_to(email.reply_to.unwrap_or_default().parse()?)
+    //     .to(email.to.parse()?)
+    //     .subject(email.subject)
+    //     .body(email.body)?;
     // Send the email via remote relay
     //let _ = state.email_connection_pool.send(&email);
     Ok(())
