@@ -23,9 +23,9 @@ pub async fn send_email(state: Arc<AppState>, email: Email<'_>) -> Result<(), an
         .to(email.to.parse()?)
         .subject(email.subject)
         .body(email.body)?;
-
+    println!("The email to be sent to the user is {:?}", email);
     // Send the email via remote relay
-    let _ = state.email_connection_pool.send(&email);
+    //let _ = state.email_connection_pool.send(&email);
     Ok(())
 }
 

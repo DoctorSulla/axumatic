@@ -102,7 +102,7 @@ pub struct User {
     hashed_password: String,
 }
 
-// Used to fetch the user from object from the username header
+// Used to extract the user from object from the username header
 #[async_trait]
 impl FromRequestParts<Arc<AppState>> for User {
     type Rejection = (StatusCode, &'static str);
@@ -117,7 +117,7 @@ impl FromRequestParts<Arc<AppState>> for User {
         };
         let username = match username.to_str() {
             Ok(i) => i,
-            Err(e) => {
+            Err(_e) => {
                 return Err((
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "Unexpected error with header value",
@@ -171,7 +171,7 @@ pub struct VerificationDetails {
     code: String,
 }
 
-pub async fn hello_world(headers: HeaderMap, user: User) -> Result<Html<String>, AppError> {
+pub async fn hello_world(user: User) -> Result<Html<String>, AppError> {
     println!("The authenticated user is {:?}", user);
     Ok(Html("Hello, what are you doing?".to_string()))
 }
@@ -240,7 +240,7 @@ pub async fn register(
         CodeType::EmailVerification,
     )
     .await?;
-    //send_email(state.clone(), email).await?;
+    send_email(state.clone(), email).await?;
 
     Ok(Html("Registration successful".to_string()))
 }
@@ -337,6 +337,7 @@ pub async fn verify_email(
 
 pub async fn change_password(
     State(state): State<Arc<AppState>>,
+    user: User,
     Json(password_details): Json<ChangePassword>,
 ) -> Result<Html<String>, AppError> {
     validate_password(&password_details.password)?;
@@ -349,7 +350,7 @@ pub async fn change_password(
 
     sqlx::query("UPDATE users SET hashed_password = ? WHERE email = ?")
         .bind(hashed_password)
-        .bind("example@email.com") // Would be replaced by authenticated user's email
+        .bind(user.email)
         .execute(&state.db_connection_pool)
         .await?;
 
