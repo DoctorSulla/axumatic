@@ -1,4 +1,5 @@
-use axum::extract::{Json, State};
+use axum::async_trait;
+use axum::extract::{FromRequestParts, Json, State};
 use axum::response::IntoResponse;
 use axum::{http::StatusCode, response::Html};
 use chrono::Utc;
@@ -94,11 +95,62 @@ pub struct RegistrationDetails {
     confirm_password: String,
 }
 
-#[derive(Serialize, Deserialize, FromRow)]
+#[derive(Serialize, Deserialize, Debug, FromRow)]
 pub struct User {
     username: String,
     email: String,
     hashed_password: String,
+}
+
+// Used to fetch the user from object from the username header
+#[async_trait]
+impl FromRequestParts<Arc<AppState>> for User {
+    type Rejection = (StatusCode, &'static str);
+
+    async fn from_request_parts(
+        parts: &mut http::request::Parts,
+        state: &Arc<AppState>,
+    ) -> Result<Self, Self::Rejection> {
+        let username = match parts.headers.get("username") {
+            Some(username) => username,
+            None => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Expected header missing")),
+        };
+        let username = match username.to_str() {
+            Ok(i) => i,
+            Err(e) => {
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Unexpected error with header value",
+                ))
+            }
+        };
+        let user = sqlx::query_as::<_, User>("select * from users where username=?")
+            .bind(username)
+            .fetch_optional(&state.db_connection_pool)
+            .await;
+
+        match user {
+            Ok(user) => {
+                if let Some(user) = user {
+                    return Ok(user);
+                }
+            }
+            Err(_e) => {
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Unexpected error fetching user",
+                ))
+            }
+        };
+        Err((StatusCode::INTERNAL_SERVER_ERROR, "Error fetching user"))
+        //Ok(user.unwrap().unwrap())
+
+        // Ok(User {
+        //     username: "test".to_string(),
+        //     email: "blah".to_string(),
+        //     hashed_password: "hmm".to_string(),
+        // })
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -119,8 +171,8 @@ pub struct VerificationDetails {
     code: String,
 }
 
-pub async fn hello_world(headers: HeaderMap) -> Result<Html<String>, AppError> {
-    println!("{:?}", headers);
+pub async fn hello_world(headers: HeaderMap, user: User) -> Result<Html<String>, AppError> {
+    println!("The authenticated user is {:?}", user);
     Ok(Html("Hello, what are you doing?".to_string()))
 }
 
