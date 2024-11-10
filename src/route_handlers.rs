@@ -23,16 +23,31 @@ mod validations;
 #[derive(FromRow)]
 pub struct Username(pub String);
 
+#[derive(FromRow)]
+pub struct Code(pub String, pub String);
+
+#[derive(Deserialize)]
+pub struct PasswordResetRequest(pub String);
+
+#[derive(Deserialize)]
+pub struct PasswordResetResponse {
+    pub code: String,
+    pub password: String,
+    pub confirm_password: String,
+}
+
 // Verification code types
 #[derive(Debug)]
 pub enum CodeType {
     EmailVerification,
+    PasswordReset,
 }
 
 impl From<CodeType> for String {
     fn from(val: CodeType) -> Self {
         match val {
             CodeType::EmailVerification => "EmailVerification".to_string(),
+            CodeType::PasswordReset => "PasswordReset".to_string(),
         }
     }
 }
@@ -357,6 +372,75 @@ pub async fn change_password(
     Ok(Html("Password successfully changed".to_string()))
 }
 
-pub async fn reset_password() -> Result<Html<String>, StatusCode> {
-    Ok(Html("Reset Password".to_string()))
+pub async fn reset_password_request(
+    State(state): State<Arc<AppState>>,
+    Json(password_reset_request): Json<PasswordResetRequest>,
+) -> Result<Html<String>, AppError> {
+    // Check if user exists for provided email
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = ?")
+        .bind(&password_reset_request.0)
+        .fetch_optional(&state.db_connection_pool)
+        .await?;
+
+    let user = match user {
+        Some(u) => u,
+        None => return Err(ErrorList::IncorrectUsername.into()),
+    };
+
+    // Generate a code
+    let code = generate_unique_id(8);
+
+    // Add code to database
+    add_code(state.clone(), &user.email, &code, CodeType::PasswordReset).await?;
+
+    // Send email
+    let email = Email {
+        to: &user.email,
+        from: "registration@tld.com",
+        subject: String::from("Password Reset"),
+        body: format!(
+            "<p>A password reset was requested for your account.</p> \
+            <p>Use this code to reset your password: {}</p> \
+            <p>If you did not request this, please ignore this email.</p>",
+            code
+        ),
+        reply_to: None,
+    };
+
+    send_email(state, email).await?;
+
+    Ok(Html("Password reset email sent".to_string()))
+}
+
+pub async fn reset_password_response(
+    State(state): State<Arc<AppState>>,
+    Json(password_reset_response): Json<PasswordResetResponse>,
+) -> Result<Html<String>, AppError> {
+    // Check if passwords match
+    if password_reset_response.password != password_reset_response.confirm_password {
+        return Err(ErrorList::NonMatchingPasswords.into());
+    }
+
+    // Check if code is valid
+    let code = sqlx::query_as::<_,Code>("SELECT code,email FROM codes WHERE code_type='PasswordReset' AND used=0 AND expiry_ts > ? AND code=?")
+            .bind(Utc::now().timestamp())
+                    .bind(password_reset_response.code).fetch_optional(&state.db_connection_pool).await?;
+
+    if let Some(code) = code {
+        // Update password
+        sqlx::query("UPDATE users SET hashed_password=? WHERE email=?")
+            .bind(hash_password(password_reset_response.password.as_str()))
+            .bind(code.1)
+            .execute(&state.db_connection_pool)
+            .await?;
+        // Mark code as used
+        sqlx::query("UPDATE codes SET used=1 WHERE code=?")
+            .bind(code.0)
+            .execute(&state.db_connection_pool)
+            .await?;
+    } else {
+        return Err(ErrorList::InvalidVerificationCode.into());
+    }
+
+    Ok(Html("Password successfully reset".to_string()))
 }
