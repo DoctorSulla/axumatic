@@ -44,30 +44,34 @@ async fn main() {
 
     event!(Level::INFO, "Creating tables");
 
-    migrate!()
-        .run(&app_state.db_connection_pool)
+    migrations(app_state.clone())
         .await
-        .expect("Unable to complete migrations");
+        .expect("Couldn't complete migrations");
 
-    let assets = ServeDir::new("assets").not_found_service(ServeFile::new("assets/404.html"));
-    let protected_routes = get_protected_routes();
-    let open_routes = get_open_routes();
+    let app = get_app(app_state.clone());
 
-    let app = Router::new()
-        .merge(protected_routes)
-        .layer(ServiceBuilder::new().layer(ValidateSessionLayer::new(app_state.clone())))
-        .merge(open_routes)
-        .with_state(app_state.clone())
-        .nest_service("/assets", assets)
-        .layer(
-            ServiceBuilder::new().layer(TimeoutLayer::new(Duration::from_secs(
-                app_state.config.server.request_timeout,
-            ))),
-        );
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", app_state.config.server.port))
         .await
         .unwrap();
     axum::serve(listener, app).await.unwrap();
+}
+
+pub fn get_app(state: Arc<AppState>) -> Router {
+    let assets = ServeDir::new("assets").not_found_service(ServeFile::new("assets/404.html"));
+    let protected_routes = get_protected_routes();
+    let open_routes = get_open_routes();
+
+    Router::new()
+        .merge(protected_routes)
+        .layer(ServiceBuilder::new().layer(ValidateSessionLayer::new(state.clone())))
+        .merge(open_routes)
+        .with_state(state.clone())
+        .nest_service("/assets", assets)
+        .layer(
+            ServiceBuilder::new().layer(TimeoutLayer::new(Duration::from_secs(
+                state.config.server.request_timeout,
+            ))),
+        )
 }
 
 pub async fn get_app_state() -> Arc<AppState> {
@@ -85,4 +89,9 @@ pub async fn get_app_state() -> Arc<AppState> {
         email_connection_pool,
         config,
     })
+}
+
+pub async fn migrations(state: Arc<AppState>) -> Result<(), anyhow::Error> {
+    let _ = migrate!().run(&state.db_connection_pool).await;
+    Ok(())
 }
