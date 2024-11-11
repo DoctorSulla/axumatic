@@ -1,3 +1,5 @@
+#![warn(unused_extern_crates)]
+
 use axum::Router;
 use config::Config;
 use lettre::SmtpTransport;
@@ -17,11 +19,13 @@ mod config;
 mod middleware;
 mod route_handlers;
 mod routes;
-mod tests;
 mod utilities;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Clone)]
-struct AppState {
+pub struct AppState {
     db_connection_pool: Pool<Sqlite>,
     email_connection_pool: SmtpTransport,
     config: Config,
@@ -36,20 +40,7 @@ async fn main() {
     let span = span!(Level::INFO, "main_span");
     let _ = span.enter();
 
-    event!(Level::INFO, "Getting config from file");
-    let config = config::get_config();
-
-    event!(Level::INFO, "Creating email connection pool");
-    let email_connection_pool = config.get_email_pool();
-
-    event!(Level::INFO, "Creating database connection pool");
-    let db_connection_pool = config.get_db_pool().await;
-
-    let app_state = Arc::new(AppState {
-        db_connection_pool,
-        email_connection_pool,
-        config,
-    });
+    let app_state = get_app_state().await;
 
     event!(Level::INFO, "Creating tables");
 
@@ -77,4 +68,21 @@ async fn main() {
         .await
         .unwrap();
     axum::serve(listener, app).await.unwrap();
+}
+
+pub async fn get_app_state() -> Arc<AppState> {
+    event!(Level::INFO, "Getting config from file");
+    let config = config::get_config();
+
+    event!(Level::INFO, "Creating email connection pool");
+    let email_connection_pool = config.get_email_pool();
+
+    event!(Level::INFO, "Creating database connection pool");
+    let db_connection_pool = config.get_db_pool().await;
+
+    Arc::new(AppState {
+        db_connection_pool,
+        email_connection_pool,
+        config,
+    })
 }

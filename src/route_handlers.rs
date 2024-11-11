@@ -104,10 +104,10 @@ where
 
 #[derive(Serialize, Deserialize)]
 pub struct RegistrationDetails {
-    username: String,
-    email: String,
-    password: String,
-    confirm_password: String,
+    pub username: String,
+    pub email: String,
+    pub password: String,
+    pub confirm_password: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, FromRow)]
