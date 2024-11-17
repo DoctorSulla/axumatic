@@ -1,10 +1,7 @@
+use crate::{default_route_handlers::RegistrationDetails, get_app, get_app_state, migrations};
 use http::StatusCode;
 use reqwest::Client;
-use serde::Serialize;
 use serde_json;
-use sqlx::migrate;
-
-use crate::{get_app, get_app_state, migrations, route_handlers::RegistrationDetails};
 
 async fn run_test_app() -> u16 {
     let state = get_app_state().await;

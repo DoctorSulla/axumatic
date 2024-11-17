@@ -1,11 +1,10 @@
 #![warn(unused_extern_crates)]
 
 use axum::Router;
-use config::Config;
-use lettre::SmtpTransport;
+use config::AppState;
 use middleware::ValidateSessionLayer;
 use routes::*;
-use sqlx::{migrate, Pool, Sqlite};
+use sqlx::migrate;
 use std::{sync::Arc, time::Duration};
 use tower::ServiceBuilder;
 use tower_http::{
@@ -16,20 +15,13 @@ use tracing::{event, span, Level};
 
 mod auth;
 mod config;
+mod default_route_handlers;
 mod middleware;
-mod route_handlers;
 mod routes;
 mod utilities;
 
 #[cfg(test)]
 mod tests;
-
-#[derive(Clone)]
-pub struct AppState {
-    db_connection_pool: Pool<Sqlite>,
-    email_connection_pool: SmtpTransport,
-    config: Config,
-}
 
 #[tokio::main]
 async fn main() {

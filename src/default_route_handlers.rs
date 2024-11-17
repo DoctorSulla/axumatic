@@ -19,18 +19,19 @@ use crate::AppState;
 
 mod validations;
 
-// String wrapper to allow derived impl of FromRow
+// Wrapper to allow derived impl of FromRow
 #[derive(FromRow)]
 pub struct Username(pub String);
 
+// Wrapper to allow derived impl of FromRow
 #[derive(FromRow)]
-pub struct Code(pub String, pub String);
+pub struct CodeAndEmail(pub String, pub String);
 
 #[derive(Deserialize)]
-pub struct PasswordResetRequest(pub String);
+pub struct PasswordResetInitiateRequest(pub String);
 
 #[derive(Deserialize)]
-pub struct PasswordResetResponse {
+pub struct PasswordResetCompleteRequest {
     pub code: String,
     pub password: String,
     pub confirm_password: String,
@@ -372,9 +373,9 @@ pub async fn change_password(
     Ok(Html("Password successfully changed".to_string()))
 }
 
-pub async fn reset_password_request(
+pub async fn password_reset_initiate(
     State(state): State<Arc<AppState>>,
-    Json(password_reset_request): Json<PasswordResetRequest>,
+    Json(password_reset_request): Json<PasswordResetInitiateRequest>,
 ) -> Result<Html<String>, AppError> {
     // Check if user exists for provided email
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = ?")
@@ -412,9 +413,9 @@ pub async fn reset_password_request(
     Ok(Html("Password reset email sent".to_string()))
 }
 
-pub async fn reset_password_response(
+pub async fn password_reset_complete(
     State(state): State<Arc<AppState>>,
-    Json(password_reset_response): Json<PasswordResetResponse>,
+    Json(password_reset_response): Json<PasswordResetCompleteRequest>,
 ) -> Result<Html<String>, AppError> {
     // Check if passwords match
     if password_reset_response.password != password_reset_response.confirm_password {
@@ -422,7 +423,7 @@ pub async fn reset_password_response(
     }
 
     // Check if code is valid
-    let code = sqlx::query_as::<_,Code>("SELECT code,email FROM codes WHERE code_type='PasswordReset' AND used=0 AND expiry_ts > ? AND code=?")
+    let code = sqlx::query_as::<_,CodeAndEmail>("SELECT code,email FROM codes WHERE code_type='PasswordReset' AND used=0 AND expiry_ts > ? AND code=?")
             .bind(Utc::now().timestamp())
                     .bind(password_reset_response.code).fetch_optional(&state.db_connection_pool).await?;
 

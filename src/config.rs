@@ -14,6 +14,13 @@ use sqlx::{
     Pool, Sqlite,
 };
 
+#[derive(Clone)]
+pub struct AppState {
+    pub db_connection_pool: Pool<Sqlite>,
+    pub email_connection_pool: SmtpTransport,
+    pub config: Config,
+}
+
 #[derive(Deserialize, Clone)]
 pub struct Config {
     pub server: ServerConfig,
