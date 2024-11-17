@@ -4,7 +4,7 @@ use serde::Serialize;
 use serde_json;
 use sqlx::migrate;
 
-use crate::{get_app, get_app_state, migrations, route_handlers::RegistrationDetails, AppState};
+use crate::{get_app, get_app_state, migrations, route_handlers::RegistrationDetails};
 
 async fn run_test_app() -> u16 {
     let state = get_app_state().await;
@@ -64,15 +64,135 @@ async fn register() {
 }
 
 #[tokio::test]
-async fn register_invalid_username() {
+async fn register_username_too_short() {
     let port = run_test_app().await;
     let client = Client::new();
     let url = format!("{}:{}/account/register", SERVER_URL, port);
     let registration_request = RegistrationDetails {
-        username: "Joh".to_string(),
+        username: "Jo".to_string(),
         email: "john@doe.gmail.com".to_string(),
         password: "TestPassword".to_string(),
         confirm_password: "TestPassword".to_string(),
+    };
+    let registration_request = serde_json::to_string(&registration_request).unwrap();
+
+    let response = client
+        .post(url)
+        .body(registration_request)
+        .header("Content-Type", "application/json")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let _ = cleanup().await;
+}
+
+#[tokio::test]
+async fn register_username_too_long() {
+    let port = run_test_app().await;
+    let client = Client::new();
+    let url = format!("{}:{}/account/register", SERVER_URL, port);
+    let registration_request = RegistrationDetails {
+        username: "aabcdefghijklmnopqrstuvwxyabcdefghijklmnopqrstuvwxyabcdefghijklmnopqrstuvwxybcdefghijklmnopqrstuvwxya".to_string(),
+        email: "john@doe.gmail.com".to_string(),
+        password: "TestPassword".to_string(),
+        confirm_password: "TestPassword".to_string(),
+    };
+    let registration_request = serde_json::to_string(&registration_request).unwrap();
+
+    let response = client
+        .post(url)
+        .body(registration_request)
+        .header("Content-Type", "application/json")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let _ = cleanup().await;
+}
+
+#[tokio::test]
+async fn register_invalid_email() {
+    let port = run_test_app().await;
+    let client = Client::new();
+    let url = format!("{}:{}/account/register", SERVER_URL, port);
+    let registration_request = RegistrationDetails {
+        username: "JohnDoe".to_string(),
+        email: "johndoe.gmail.com".to_string(),
+        password: "TestPassword".to_string(),
+        confirm_password: "TestPassword".to_string(),
+    };
+    let registration_request = serde_json::to_string(&registration_request).unwrap();
+
+    let response = client
+        .post(url)
+        .body(registration_request)
+        .header("Content-Type", "application/json")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let _ = cleanup().await;
+}
+
+#[tokio::test]
+async fn register_non_matching_passwords() {
+    let port = run_test_app().await;
+    let client = Client::new();
+    let url = format!("{}:{}/account/register", SERVER_URL, port);
+    let registration_request = RegistrationDetails {
+        username: "JohnDoe".to_string(),
+        email: "john@doe.gmail.com".to_string(),
+        password: "TestPasswor".to_string(),
+        confirm_password: "TestPassword".to_string(),
+    };
+    let registration_request = serde_json::to_string(&registration_request).unwrap();
+
+    let response = client
+        .post(url)
+        .body(registration_request)
+        .header("Content-Type", "application/json")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let _ = cleanup().await;
+}
+
+#[tokio::test]
+async fn register_password_too_short() {
+    let port = run_test_app().await;
+    let client = Client::new();
+    let url = format!("{}:{}/account/register", SERVER_URL, port);
+    let registration_request = RegistrationDetails {
+        username: "JohnDoe".to_string(),
+        email: "john@doe.gmail.com".to_string(),
+        password: "TestPas".to_string(),
+        confirm_password: "TestPas".to_string(),
+    };
+    let registration_request = serde_json::to_string(&registration_request).unwrap();
+
+    let response = client
+        .post(url)
+        .body(registration_request)
+        .header("Content-Type", "application/json")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let _ = cleanup().await;
+}
+
+#[tokio::test]
+async fn register_password_too_long() {
+    let port = run_test_app().await;
+    let client = Client::new();
+    let url = format!("{}:{}/account/register", SERVER_URL, port);
+    let registration_request = RegistrationDetails {
+        username: "JohnDoe".to_string(),
+        email: "john@doe.gmail.com".to_string(),
+        password: "aabcdefghijklmnopqrstuvwxyabcdefghijklmnopqrstuvwxyabcdefghijklmnopqrstuvwxybcdefghijklmnopqrstuvwxya".to_string(),
+        confirm_password: "aabcdefghijklmnopqrstuvwxyabcdefghijklmnopqrstuvwxyabcdefghijklmnopqrstuvwxybcdefghijklmnopqrstuvwxya".to_string(),
     };
     let registration_request = serde_json::to_string(&registration_request).unwrap();
 
