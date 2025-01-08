@@ -81,14 +81,38 @@ pub enum ErrorList {
     Unauthorised,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct AuthAndLoginResponse {
+    response_type: ResponseType,
+    message: String,
+}
+
+#[derive(Serialize, Deserialize)]
+enum ResponseType {
+    Error,
+    RegistrationSuccess,
+    LoginSuccess,
+}
+
+impl From<ResponseType> for String {
+    fn from(value: ResponseType) -> Self {
+        match value {
+            ResponseType::Error => "Error".to_string(),
+            ResponseType::LoginSuccess => "LoginSuccess".to_string(),
+            ResponseType::RegistrationSuccess => "RegistrationSuccess".to_string(),
+        }
+    }
+}
+
 // Convert every AppError into a status code and its display impl
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Internal server error: {}", self.0),
-        )
-            .into_response()
+        let message = format!("{}", self.0);
+        let error_response = AuthAndLoginResponse {
+            message,
+            response_type: ResponseType::Error,
+        };
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(error_response)).into_response()
     }
 }
 
@@ -195,7 +219,7 @@ pub async fn hello_world(user: User) -> Result<Html<String>, AppError> {
 pub async fn register(
     State(state): State<Arc<AppState>>,
     Json(registration_details): Json<RegistrationDetails>,
-) -> Result<Html<String>, AppError> {
+) -> Result<Json<AuthAndLoginResponse>, AppError> {
     // Validate all the fields
     validate_email(&registration_details.email)?;
     validate_username(&registration_details.username)?;
@@ -258,7 +282,10 @@ pub async fn register(
     .await?;
     send_email(state.clone(), email).await?;
 
-    Ok(Html("Registration successful".to_string()))
+    return Ok(Json(AuthAndLoginResponse {
+        response_type: ResponseType::RegistrationSuccess,
+        message: "Registration successful".to_string(),
+    }));
 }
 
 pub async fn add_code(
@@ -283,7 +310,7 @@ pub async fn add_code(
 pub async fn login(
     State(state): State<Arc<AppState>>,
     Json(login_details): Json<LoginDetails>,
-) -> Result<(HeaderMap, Html<String>), AppError> {
+) -> Result<(HeaderMap, Json<AuthAndLoginResponse>), AppError> {
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = ?")
         .bind(login_details.email)
         .fetch_optional(&state.db_connection_pool)
@@ -310,7 +337,13 @@ pub async fn login(
             .bind(expiry)
             .execute(&state.db_connection_pool)
             .await?;
-        return Ok((header_map, Html("Login successful".to_string())));
+        return Ok((
+            header_map,
+            Json(AuthAndLoginResponse {
+                response_type: ResponseType::LoginSuccess,
+                message: "Login successful".to_string(),
+            }),
+        ));
     }
     Err(ErrorList::IncorrectPassword.into())
 }
