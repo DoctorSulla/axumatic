@@ -4,8 +4,10 @@ use axum::{
 };
 use futures_util::future::BoxFuture;
 use http::HeaderValue;
-use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::{
+    sync::Arc,
+    task::{Context, Poll},
+};
 use tower::{Layer, Service};
 
 use crate::{auth::validate_cookie, AppState};
