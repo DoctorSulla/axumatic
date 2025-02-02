@@ -1,12 +1,12 @@
-use axum::async_trait;
-use axum::extract::{FromRequestParts, Json, State};
-use axum::response::IntoResponse;
-use axum::{http::StatusCode, response::Html};
+use axum::{
+    async_trait,
+    extract::{FromRequestParts, Json, State},
+    http::StatusCode,
+    response::{Html, IntoResponse},
+};
 use chrono::Utc;
-use cookie::time::Duration;
-use cookie::Cookie;
-use http::header;
-use http::header::HeaderMap;
+use cookie::{time::Duration, Cookie};
+use http::{header, header::HeaderMap};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use std::sync::Arc;
