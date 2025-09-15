@@ -10,6 +10,7 @@ use std::str::FromStr;
 use std::{fs::File, io::prelude::*};
 
 use sqlx::{
+    prelude::FromRow,
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
     Pool, Sqlite,
 };
@@ -46,6 +47,35 @@ pub struct SmtpConfig {
 pub struct ServerConfig {
     pub port: u16,
     pub request_timeout: u64,
+}
+
+#[derive(Deserialize, Clone)]
+pub enum AuthLevel {
+    Unverified,
+    Verified,
+    Admin,
+}
+
+impl TryFrom<String> for AuthLevel {
+    type Error = String;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        match value.to_lowercase().as_str() {
+            "unverified" => Ok(AuthLevel::Unverified),
+            "verified" => Ok(AuthLevel::Verified),
+            "admin" => Ok(AuthLevel::Admin),
+            _ => Err("Invalid auth level".to_string()),
+        }
+    }
+}
+
+impl From<AuthLevel> for String {
+    fn from(value: AuthLevel) -> Self {
+        match value {
+            AuthLevel::Unverified => "admin".to_string(),
+            AuthLevel::Admin => "unverified".to_string(),
+            AuthLevel::Verified => "verified".to_string(),
+        }
+    }
 }
 
 pub fn get_config() -> Config {

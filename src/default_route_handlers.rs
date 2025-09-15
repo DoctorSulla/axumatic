@@ -14,8 +14,8 @@ use thiserror::Error;
 use tracing::{event, Level};
 use validations::*;
 
-use crate::utilities::*;
 use crate::AppState;
+use crate::{config::AuthLevel, utilities::*};
 
 mod validations;
 
@@ -140,6 +140,7 @@ pub struct User {
     username: String,
     email: String,
     hashed_password: String,
+    auth_level: String,
 }
 
 // Used to extract the user from object from the username header
@@ -367,7 +368,7 @@ pub async fn verify_email(
         return Err(ErrorList::InvalidVerificationCode.into());
     }
 
-    sqlx::query("UPDATE users SET auth_level = 50 WHERE email = ?")
+    sqlx::query("UPDATE users SET auth_level = 'verified' WHERE email = ?")
         .bind(&verification_details.email)
         .execute(&state.db_connection_pool)
         .await?;

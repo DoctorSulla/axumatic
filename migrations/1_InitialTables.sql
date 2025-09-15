@@ -3,7 +3,7 @@
                 username VARCHAR(50) unique,
                 hashed_password VARCHAR(100),
                 login_attempts INTEGER DEFAULT 0,
-                auth_level INTEGER DEFAULT 0,
+                auth_level VARCHAR(30) DEFAULT "unverified",
                 PRIMARY KEY(email,username)
         );
 
