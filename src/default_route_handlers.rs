@@ -14,8 +14,8 @@ use thiserror::Error;
 use tracing::{event, Level};
 use validations::*;
 
+use crate::utilities::*;
 use crate::AppState;
-use crate::{config::AuthLevel, utilities::*};
 
 mod validations;
 
@@ -83,15 +83,19 @@ pub enum ErrorList {
 
 #[derive(Serialize, Deserialize)]
 pub struct AuthAndLoginResponse {
-    response_type: ResponseType,
-    message: String,
+    pub response_type: ResponseType,
+    pub message: String,
 }
 
-#[derive(Serialize, Deserialize)]
-enum ResponseType {
+#[derive(Serialize, Deserialize, PartialEq, Debug)]
+pub enum ResponseType {
     Error,
     RegistrationSuccess,
     LoginSuccess,
+    EmailVerificationSuccess,
+    PasswordChangeSuccess,
+    PasswordResetInitiationSuccess,
+    PasswordResetSuccess,
 }
 
 impl From<ResponseType> for String {
@@ -100,6 +104,12 @@ impl From<ResponseType> for String {
             ResponseType::Error => "Error".to_string(),
             ResponseType::LoginSuccess => "LoginSuccess".to_string(),
             ResponseType::RegistrationSuccess => "RegistrationSuccess".to_string(),
+            ResponseType::EmailVerificationSuccess => "EmailVerificationSuccess".to_string(),
+            ResponseType::PasswordChangeSuccess => "PasswordChangeSuccess".to_string(),
+            ResponseType::PasswordResetInitiationSuccess => {
+                "PasswordResetInitiationSuccess".to_string()
+            }
+            ResponseType::PasswordResetSuccess => "PasswordResetSuccess".to_string(),
         }
     }
 }
@@ -325,6 +335,8 @@ pub async fn login(
         let session_key = generate_unique_id(100);
         let session_cookie = Cookie::build(("session-key", &session_key))
             .max_age(Duration::days(1000))
+            .path("/")
+            .secure(true)
             .http_only(true)
             .build();
         header_map.insert(
@@ -352,7 +364,7 @@ pub async fn login(
 pub async fn verify_email(
     State(state): State<Arc<AppState>>,
     Json(verification_details): Json<VerificationDetails>,
-) -> Result<Html<String>, AppError> {
+) -> Result<Json<AuthAndLoginResponse>, AppError> {
     let now = Utc::now().timestamp();
 
     let code_exists = sqlx::query(
@@ -382,14 +394,17 @@ pub async fn verify_email(
     .execute(&state.db_connection_pool)
     .await?;
 
-    Ok(Html("Email successfully verified".to_string()))
+    Ok(Json(AuthAndLoginResponse {
+        message: "Email verified successfully".to_string(),
+        response_type: ResponseType::EmailVerificationSuccess,
+    }))
 }
 
 pub async fn change_password(
     State(state): State<Arc<AppState>>,
     user: User,
     Json(password_details): Json<ChangePassword>,
-) -> Result<Html<String>, AppError> {
+) -> Result<Json<AuthAndLoginResponse>, AppError> {
     validate_password(&password_details.password)?;
 
     if password_details.password != password_details.confirm_password {
@@ -404,13 +419,16 @@ pub async fn change_password(
         .execute(&state.db_connection_pool)
         .await?;
 
-    Ok(Html("Password successfully changed".to_string()))
+    Ok(Json(AuthAndLoginResponse {
+        message: "Password changed successfully".to_string(),
+        response_type: ResponseType::PasswordChangeSuccess,
+    }))
 }
 
 pub async fn password_reset_initiate(
     State(state): State<Arc<AppState>>,
     Json(password_reset_request): Json<PasswordResetInitiateRequest>,
-) -> Result<Html<String>, AppError> {
+) -> Result<Json<AuthAndLoginResponse>, AppError> {
     // Check if user exists for provided email
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = ?")
         .bind(&password_reset_request.0)
@@ -444,13 +462,16 @@ pub async fn password_reset_initiate(
 
     send_email(state, email).await?;
 
-    Ok(Html("Password reset email sent".to_string()))
+    Ok(Json(AuthAndLoginResponse {
+        message: "Password reset email sent".to_string(),
+        response_type: ResponseType::PasswordResetInitiationSuccess,
+    }))
 }
 
 pub async fn password_reset_complete(
     State(state): State<Arc<AppState>>,
     Json(password_reset_response): Json<PasswordResetCompleteRequest>,
-) -> Result<Html<String>, AppError> {
+) -> Result<Json<AuthAndLoginResponse>, AppError> {
     // Check if passwords match
     if password_reset_response.password != password_reset_response.confirm_password {
         return Err(ErrorList::NonMatchingPasswords.into());
@@ -477,5 +498,8 @@ pub async fn password_reset_complete(
         return Err(ErrorList::InvalidVerificationCode.into());
     }
 
-    Ok(Html("Password successfully reset".to_string()))
+    Ok(Json(AuthAndLoginResponse {
+        message: "Password reset complete".to_string(),
+        response_type: ResponseType::PasswordResetSuccess,
+    }))
 }

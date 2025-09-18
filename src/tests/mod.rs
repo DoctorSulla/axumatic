@@ -1,4 +1,7 @@
-use crate::{default_route_handlers::RegistrationDetails, get_app, get_app_state, migrations};
+use crate::{
+    default_route_handlers::{AuthAndLoginResponse, RegistrationDetails, ResponseType},
+    get_app, get_app_state, migrations,
+};
 use http::StatusCode;
 use reqwest::Client;
 use serde_json;
@@ -201,5 +204,89 @@ async fn register_password_too_long() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let _ = cleanup().await;
+}
+
+#[tokio::test]
+async fn login() {
+    let port = run_test_app().await;
+    let client = Client::new();
+    let url = format!("{}:{}/account/register", SERVER_URL, port);
+    let registration_request = RegistrationDetails {
+        username: "JohnDoe".to_string(),
+        email: "john@doe.gmail.com".to_string(),
+        password: "Qwertyuio123!".to_string(),
+        confirm_password: "Qwertyuio123!".to_string(),
+    };
+    let registration_request = serde_json::to_string(&registration_request).unwrap();
+
+    let response: AuthAndLoginResponse = client
+        .post(url)
+        .body(registration_request)
+        .header("Content-Type", "application/json")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(response.response_type, ResponseType::RegistrationSuccess);
+
+    let _ = cleanup().await;
+}
+
+#[tokio::test]
+async fn login() {
+    let port = run_test_app().await;
+    let client = Client::new();
+    let url = format!("{}:{}/account/register", SERVER_URL, port);
+    let registration_request = RegistrationDetails {
+        username: "JohnDoe".to_string(),
+        email: "john@doe.gmail.com".to_string(),
+        password: "Qwertyuio123!".to_string(),
+        confirm_password: "Qwertyuio123!".to_string(),
+    };
+    let registration_request = serde_json::to_string(&registration_request).unwrap();
+
+    let response: AuthAndLoginResponse = client
+        .post(url)
+        .body(registration_request)
+        .header("Content-Type", "application/json")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(response.response_type, ResponseType::RegistrationSuccess);
+
+    let _ = cleanup().await;
+}
+
+#[tokio::test]
+async fn change_password() {
+    let port = run_test_app().await;
+    let client = Client::new();
+    let url = format!("{}:{}/account/register", SERVER_URL, port);
+    let registration_request = RegistrationDetails {
+        username: "JohnDoe".to_string(),
+        email: "john@doe.gmail.com".to_string(),
+        password: "Qwertyuio123!".to_string(),
+        confirm_password: "Qwertyuio123!".to_string(),
+    };
+    let registration_request = serde_json::to_string(&registration_request).unwrap();
+
+    let response: AuthAndLoginResponse = client
+        .post(url)
+        .body(registration_request)
+        .header("Content-Type", "application/json")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(response.response_type, ResponseType::RegistrationSuccess);
+
     let _ = cleanup().await;
 }
