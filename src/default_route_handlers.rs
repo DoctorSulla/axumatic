@@ -27,10 +27,10 @@ pub struct Username(pub String);
 #[derive(FromRow)]
 pub struct CodeAndEmail(pub String, pub String);
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct PasswordResetInitiateRequest(pub String);
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct PasswordResetCompleteRequest {
     pub code: String,
     pub password: String,
@@ -77,6 +77,8 @@ pub enum ErrorList {
     IncorrectUsername,
     #[error("Invalid or expired verification code")]
     InvalidVerificationCode,
+    #[error("Too many login attempts, please reset your password")]
+    TooManyLoginAttempts,
     #[error("Unauthorised")]
     Unauthorised,
 }
@@ -147,10 +149,11 @@ pub struct RegistrationDetails {
 
 #[derive(Serialize, Deserialize, Debug, FromRow)]
 pub struct User {
-    username: String,
-    email: String,
-    hashed_password: String,
-    auth_level: String,
+    pub username: String,
+    pub email: String,
+    pub hashed_password: String,
+    pub auth_level: String,
+    pub login_attempts: i64,
 }
 
 // Used to extract the user from object from the username header
@@ -317,13 +320,16 @@ pub async fn login(
     Json(login_details): Json<LoginDetails>,
 ) -> Result<(HeaderMap, Json<AuthAndLoginResponse>), AppError> {
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = ?")
-        .bind(login_details.email)
+        .bind(&login_details.email)
         .fetch_optional(&state.db_connection_pool)
         .await?;
     let user = match user {
         Some(i) => i,
         None => return Err(ErrorList::IncorrectUsername.into()),
     };
+    if user.login_attempts >= state.config.server.max_unsuccessful_login_attempts {
+        return Err(ErrorList::TooManyLoginAttempts.into());
+    }
     let mut header_map = HeaderMap::new();
     if verify_password(&user.hashed_password, &login_details.password) {
         let session_key = generate_unique_id(100);
@@ -351,8 +357,14 @@ pub async fn login(
                 message: "Login successful".to_string(),
             }),
         ));
+    } else {
+        let _ = sqlx::query("UPDATE users SET login_attempts=? WHERE email=?")
+            .bind(user.login_attempts + 1)
+            .bind(&login_details.email)
+            .execute(&state.db_connection_pool)
+            .await?;
+        Err(ErrorList::IncorrectPassword.into())
     }
-    Err(ErrorList::IncorrectPassword.into())
 }
 
 pub async fn verify_email(
@@ -481,7 +493,7 @@ pub async fn password_reset_complete(
 
     if let Some(code) = code {
         // Update password
-        sqlx::query("UPDATE users SET hashed_password=? WHERE email=?")
+        sqlx::query("UPDATE users SET hashed_password=?, login_attempts=0 WHERE email=?")
             .bind(hash_password(password_reset_response.password.as_str()))
             .bind(code.1)
             .execute(&state.db_connection_pool)

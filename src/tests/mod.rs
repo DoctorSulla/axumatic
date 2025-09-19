@@ -1,5 +1,7 @@
+use crate::config::get_config;
 use crate::default_route_handlers::{
-    AuthAndLoginResponse, ChangePassword, LoginDetails, ResponseType,
+    AuthAndLoginResponse, ChangePassword, LoginDetails, PasswordResetCompleteRequest,
+    PasswordResetInitiateRequest, ResponseType,
 };
 use crate::utilities::generate_unique_id;
 use crate::{default_route_handlers::RegistrationDetails, get_app, get_app_state, migrations};
@@ -7,7 +9,19 @@ use http::header::{CONTENT_TYPE, COOKIE};
 use http::{HeaderValue, StatusCode};
 use reqwest::header::HeaderMap;
 use reqwest::{Client, Response};
+use serde::{Deserialize, Serialize};
 use serde_json;
+use sqlx::prelude::FromRow;
+
+#[derive(Serialize, Deserialize, FromRow, Debug)]
+struct Code {
+    code_type: String,
+    email: String,
+    code: String,
+    created_ts: String,
+    expiry_ts: String,
+    used: bool,
+}
 
 async fn run_test_app() -> u16 {
     let state = get_app_state().await;
@@ -392,4 +406,98 @@ async fn change_password_invalid_password() {
     assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
 
     let _ = delete_reg(username, email).await;
+}
+
+#[tokio::test]
+async fn reset_password() {
+    let port = run_test_app().await;
+    let client = Client::new();
+    let url = format!("{}:{}/account/resetPassword", SERVER_URL, port);
+    let (username, email, _password, _response) = create_valid_reg(port).await;
+
+    let initiate_reset_password_request = PasswordResetInitiateRequest(email.clone());
+    let body = serde_json::to_string(&initiate_reset_password_request).unwrap();
+
+    let _ = client
+        .post(&url)
+        .body(body)
+        .header("Content-Type", "application/json")
+        .send()
+        .await
+        .unwrap();
+
+    let pool = get_config().get_db_pool().await;
+
+    let code = sqlx::query_as::<_, Code>("SELECT code,email,code_type,created_ts,expiry_ts,used FROM codes WHERE email=? AND code_type='PasswordReset' AND used=0")
+        .bind(&email)
+        .fetch_optional(&pool)
+        .await.unwrap().unwrap();
+
+    let new_password = generate_unique_id(25);
+
+    let complete_reset_password_request = PasswordResetCompleteRequest {
+        code: code.code,
+        password: new_password.clone(),
+        confirm_password: new_password.clone(),
+    };
+
+    let body = serde_json::to_string(&complete_reset_password_request).unwrap();
+
+    let complete_reset_response: AuthAndLoginResponse = client
+        .patch(&url)
+        .body(body)
+        .header("Content-Type", "application/json")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    assert_eq!(
+        complete_reset_response.response_type,
+        ResponseType::PasswordResetSuccess
+    );
+
+    let _ = delete_reg(username, email).await;
+}
+
+#[tokio::test]
+async fn check_max_login_attempts() {
+    let port = run_test_app().await;
+    let client = Client::new();
+    let config = get_config();
+
+    let (username, email, password, _response) = create_valid_reg(port).await;
+    let mut i: i64 = 0;
+
+    while i < config.server.max_unsuccessful_login_attempts {
+        let _ = login(email.clone(), "incorrect_password".to_string(), port).await;
+        i += 1;
+    }
+
+    let url = format!("{}:{}/account/login", SERVER_URL, port);
+    let login_details = LoginDetails {
+        email: email.clone(),
+        password,
+    };
+    let login_json = serde_json::to_string(&login_details).unwrap();
+    let response: AuthAndLoginResponse = client
+        .post(url)
+        .body(login_json)
+        .header("Content-Type", "application/json")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    assert_eq!(response.response_type, ResponseType::Error);
+    assert_eq!(
+        response.message,
+        *"Too many login attempts, please reset your password"
+    );
+
+    //let _ = delete_reg(username, email).await;
 }
