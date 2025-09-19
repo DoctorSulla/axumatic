@@ -81,7 +81,7 @@ pub enum ErrorList {
     Unauthorised,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct AuthAndLoginResponse {
     pub response_type: ResponseType,
     pub message: String,
@@ -205,6 +205,7 @@ pub struct LoginDetails {
 
 #[derive(Serialize, Deserialize)]
 pub struct ChangePassword {
+    pub old_password: String,
     pub password: String,
     pub confirm_password: String,
 }
@@ -398,6 +399,9 @@ pub async fn change_password(
     user: User,
     Json(password_details): Json<ChangePassword>,
 ) -> Result<Json<AuthAndLoginResponse>, AppError> {
+    if !verify_password(&user.hashed_password, &password_details.old_password) {
+        return Err(ErrorList::IncorrectPassword.into());
+    }
     validate_password(&password_details.password)?;
 
     if password_details.password != password_details.confirm_password {
