@@ -194,32 +194,25 @@ impl FromRequestParts<Arc<AppState>> for User {
             }
         };
         Err((StatusCode::INTERNAL_SERVER_ERROR, "Error fetching user"))
-        //Ok(user.unwrap().unwrap())
-
-        // Ok(User {
-        //     username: "test".to_string(),
-        //     email: "blah".to_string(),
-        //     hashed_password: "hmm".to_string(),
-        // })
     }
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct LoginDetails {
-    email: String,
-    password: String,
+    pub email: String,
+    pub password: String,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct ChangePassword {
-    password: String,
-    confirm_password: String,
+    pub password: String,
+    pub confirm_password: String,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct VerificationDetails {
-    email: String,
-    code: String,
+    pub email: String,
+    pub code: String,
 }
 
 pub async fn hello_world(user: User) -> Result<Html<String>, AppError> {
