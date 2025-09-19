@@ -499,5 +499,5 @@ async fn check_max_login_attempts() {
         *"Too many login attempts, please reset your password"
     );
 
-    //let _ = delete_reg(username, email).await;
+    let _ = delete_reg(username, email).await;
 }
