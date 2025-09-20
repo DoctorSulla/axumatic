@@ -1,4 +1,4 @@
-use crate::config::get_config;
+use crate::config::{get_config, AppState};
 use crate::default_route_handlers::{
     AuthAndLoginResponse, ChangePassword, LoginDetails, PasswordResetCompleteRequest,
     PasswordResetInitiateRequest, ResponseType,
@@ -12,22 +12,20 @@ use reqwest::{Client, Response};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use sqlx::prelude::FromRow;
+use std::sync::Arc;
 
 #[derive(Serialize, Deserialize, FromRow, Debug)]
 struct Code {
     code_type: String,
     email: String,
     code: String,
-    created_ts: String,
-    expiry_ts: String,
+    created_ts: i64,
+    expiry_ts: i64,
     used: bool,
 }
 
 async fn run_test_app() -> u16 {
     let state = get_app_state().await;
-    migrations(state.clone())
-        .await
-        .expect("Unable to complete migrations");
     let app = get_app(state.clone());
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -56,18 +54,20 @@ async fn _cleanup() -> Result<(), anyhow::Error> {
 
 async fn delete_reg(username: String, email: String) -> Result<(), anyhow::Error> {
     let state = get_app_state().await;
-    sqlx::query("DELETE FROM USERS WHERE email=?")
+    sqlx::query("DELETE FROM USERS WHERE email=$1")
         .bind(&email)
         .execute(&state.db_connection_pool)
         .await?;
-    sqlx::query("DELETE FROM CODES WHERE email=?")
+    sqlx::query("DELETE FROM CODES WHERE email=$1")
         .bind(&email)
         .execute(&state.db_connection_pool)
         .await?;
-    sqlx::query("DELETE FROM SESSIONS WHERE username=?")
+    sqlx::query("DELETE FROM SESSIONS WHERE username=$1")
         .bind(&username)
         .execute(&state.db_connection_pool)
         .await?;
+
+    state.db_connection_pool.close().await;
     Ok(())
 }
 
@@ -428,7 +428,7 @@ async fn reset_password() {
 
     let pool = get_config().get_db_pool().await;
 
-    let code = sqlx::query_as::<_, Code>("SELECT code,email,code_type,created_ts,expiry_ts,used FROM codes WHERE email=? AND code_type='PasswordReset' AND used=0")
+    let code = sqlx::query_as::<_, Code>("SELECT code,email,code_type,created_ts,expiry_ts,used FROM codes WHERE email=$1 AND code_type='PasswordReset' AND used=false")
         .bind(&email)
         .fetch_optional(&pool)
         .await.unwrap().unwrap();
@@ -469,7 +469,7 @@ async fn check_max_login_attempts() {
     let config = get_config();
 
     let (username, email, password, _response) = create_valid_reg(port).await;
-    let mut i: i64 = 0;
+    let mut i: i32 = 0;
 
     while i < config.server.max_unsuccessful_login_attempts {
         let _ = login(email.clone(), "incorrect_password".to_string(), port).await;

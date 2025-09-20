@@ -84,6 +84,6 @@ pub async fn get_app_state() -> Arc<AppState> {
 }
 
 pub async fn migrations(state: Arc<AppState>) -> Result<(), anyhow::Error> {
-    let _ = migrate!().run(&state.db_connection_pool).await;
+    let _ = migrate!().run(&state.db_connection_pool).await?;
     Ok(())
 }

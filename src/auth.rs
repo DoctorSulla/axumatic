@@ -15,7 +15,7 @@ pub async fn validate_cookie(
             let cookie = Cookie::parse(cookie_string)?;
             if cookie.name() == "session-key" {
                 let session = sqlx::query_as::<_, Username>(
-                    "SELECT username FROM SESSIONS WHERE session_key=? AND expiry > ?",
+                    "SELECT username FROM SESSIONS WHERE session_key=$1 AND expiry > $2",
                 )
                 .bind(cookie.value())
                 .bind(Utc::now().timestamp())

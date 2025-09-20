@@ -6,18 +6,15 @@ use lettre::{
     SmtpTransport,
 };
 use serde::Deserialize;
-use std::str::FromStr;
+use std::env;
 use std::{fs::File, io::prelude::*};
+use std::{str::FromStr, time::Duration};
 
-use sqlx::{
-    prelude::FromRow,
-    sqlite::{SqliteConnectOptions, SqlitePoolOptions},
-    Pool, Sqlite,
-};
+use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 
 #[derive(Clone)]
 pub struct AppState {
-    pub db_connection_pool: Pool<Sqlite>,
+    pub db_connection_pool: Pool<Postgres>,
     pub email_connection_pool: SmtpTransport,
     pub config: Config,
 }
@@ -31,7 +28,6 @@ pub struct Config {
 
 #[derive(Deserialize, Clone)]
 pub struct DatabaseConfig {
-    pub file: String,
     pub pool_size: u32,
 }
 
@@ -47,7 +43,7 @@ pub struct SmtpConfig {
 pub struct ServerConfig {
     pub port: u16,
     pub request_timeout: u64,
-    pub max_unsuccessful_login_attempts: i64,
+    pub max_unsuccessful_login_attempts: i32,
 }
 
 #[derive(Deserialize, Clone)]
@@ -105,17 +101,20 @@ impl Config {
             .build()
     }
 
-    pub async fn get_db_pool(&self) -> Pool<Sqlite> {
-        let connection_options = SqliteConnectOptions::from_str(self.database.file.as_str())
-            .expect("Unable to open or create database")
-            .create_if_missing(true);
-        match SqlitePoolOptions::new()
+    pub async fn get_db_pool(&self) -> Pool<Postgres> {
+        let mut vars = env::vars();
+        let (_key, password) = vars
+            .find(|kv| kv.0 == "PG_PASSWORD")
+            .expect("PG_PASSWORD variable not set");
+        let connection_string = format!("postgresql://neondb_owner:{password}@ep-summer-wind-abumg0f3-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require");
+
+        let connection_options =
+            sqlx::postgres::PgConnectOptions::from_str(&connection_string).unwrap();
+
+        PgPoolOptions::new()
             .max_connections(self.database.pool_size)
-            .connect_with(connection_options)
-            .await
-        {
-            Ok(val) => val,
-            Err(e) => panic!("Unable to create connection pool due to {}", e),
-        }
+            .acquire_timeout(Duration::from_secs(10))
+            .idle_timeout(Duration::from_secs(60))
+            .connect_lazy_with(connection_options)
     }
 }

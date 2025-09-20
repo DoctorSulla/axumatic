@@ -153,7 +153,7 @@ pub struct User {
     pub email: String,
     pub hashed_password: String,
     pub auth_level: String,
-    pub login_attempts: i64,
+    pub login_attempts: i32,
 }
 
 // Used to extract the user from object from the username header
@@ -178,7 +178,7 @@ impl FromRequestParts<Arc<AppState>> for User {
                 ))
             }
         };
-        let user = sqlx::query_as::<_, User>("select * from users where username=?")
+        let user = sqlx::query_as::<_, User>("select * from users where username=$1")
             .bind(username)
             .fetch_optional(&state.db_connection_pool)
             .await;
@@ -250,7 +250,7 @@ pub async fn register(
     );
 
     // Create a registration
-    sqlx::query("INSERT INTO USERS(email,username,hashed_password) values(?,?,?)")
+    sqlx::query("INSERT INTO USERS(email,username,hashed_password) values($1,$2,$3)")
         .bind(&registration_details.email)
         .bind(&registration_details.username)
         .bind(hash_password(registration_details.password.as_str()))
@@ -303,7 +303,7 @@ pub async fn add_code(
     code_type: CodeType,
 ) -> Result<(), anyhow::Error> {
     let _created = sqlx::query(
-        "INSERT INTO CODES(code_type,email,code,created_ts,expiry_ts) values(?,?,?,?,?)",
+        "INSERT INTO CODES(code_type,email,code,created_ts,expiry_ts) values($1,$2,$3,$4,$5)",
     )
     .bind(Into::<String>::into(code_type))
     .bind(email)
@@ -319,10 +319,11 @@ pub async fn login(
     State(state): State<Arc<AppState>>,
     Json(login_details): Json<LoginDetails>,
 ) -> Result<(HeaderMap, Json<AuthAndLoginResponse>), AppError> {
-    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = ?")
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
         .bind(&login_details.email)
         .fetch_optional(&state.db_connection_pool)
-        .await?;
+        .await
+        .unwrap();
     let user = match user {
         Some(i) => i,
         None => return Err(ErrorList::IncorrectUsername.into()),
@@ -344,7 +345,7 @@ pub async fn login(
             session_cookie.to_string().parse().unwrap(),
         );
         let expiry = Utc::now().timestamp() + (1000 * 24 * 60 * 60);
-        sqlx::query("INSERT INTO sessions(session_key,username, expiry) values(?, ?, ?)")
+        sqlx::query("INSERT INTO sessions(session_key,username, expiry) values($1,$2,$3)")
             .bind(session_key)
             .bind(user.username)
             .bind(expiry)
@@ -358,7 +359,7 @@ pub async fn login(
             }),
         ));
     } else {
-        let _ = sqlx::query("UPDATE users SET login_attempts=? WHERE email=?")
+        let _ = sqlx::query("UPDATE users SET login_attempts=$1 WHERE email=$2")
             .bind(user.login_attempts + 1)
             .bind(&login_details.email)
             .execute(&state.db_connection_pool)
@@ -374,7 +375,7 @@ pub async fn verify_email(
     let now = Utc::now().timestamp();
 
     let code_exists = sqlx::query(
-        "SELECT 1 FROM codes WHERE code_type = 'EmailVerification' AND email = ? AND code = ? AND expiry_ts > ?"
+        "SELECT 1 FROM codes WHERE code_type = 'EmailVerification' AND email = $1 AND code = $2 AND expiry_ts > ?"
     )
     .bind(&verification_details.email)
     .bind(&verification_details.code)
@@ -386,14 +387,14 @@ pub async fn verify_email(
         return Err(ErrorList::InvalidVerificationCode.into());
     }
 
-    sqlx::query("UPDATE users SET auth_level = 'verified' WHERE email = ?")
+    sqlx::query("UPDATE users SET auth_level = 'verified' WHERE email = $1")
         .bind(&verification_details.email)
         .execute(&state.db_connection_pool)
         .await?;
 
     // Clean up used code
     sqlx::query(
-        "UPDATE codes SET used = true WHERE email = ? AND code=? AND code_type='EmailVerification'",
+        "UPDATE codes SET used = true WHERE email = $1 AND code=$2 AND code_type='EmailVerification'",
     )
     .bind(&verification_details.email)
     .bind(&verification_details.code)
@@ -422,7 +423,7 @@ pub async fn change_password(
 
     let hashed_password = hash_password(&password_details.password);
 
-    sqlx::query("UPDATE users SET hashed_password = ? WHERE email = ?")
+    sqlx::query("UPDATE users SET hashed_password = $1 WHERE email = $2")
         .bind(hashed_password)
         .bind(user.email)
         .execute(&state.db_connection_pool)
@@ -439,7 +440,7 @@ pub async fn password_reset_initiate(
     Json(password_reset_request): Json<PasswordResetInitiateRequest>,
 ) -> Result<Json<AuthAndLoginResponse>, AppError> {
     // Check if user exists for provided email
-    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = ?")
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
         .bind(&password_reset_request.0)
         .fetch_optional(&state.db_connection_pool)
         .await?;
@@ -487,19 +488,19 @@ pub async fn password_reset_complete(
     }
 
     // Check if code is valid
-    let code = sqlx::query_as::<_,CodeAndEmail>("SELECT code,email FROM codes WHERE code_type='PasswordReset' AND used=0 AND expiry_ts > ? AND code=?")
+    let code = sqlx::query_as::<_,CodeAndEmail>("SELECT code,email FROM codes WHERE code_type='PasswordReset' AND used=false AND expiry_ts > $1 AND code=$2")
             .bind(Utc::now().timestamp())
                     .bind(password_reset_response.code).fetch_optional(&state.db_connection_pool).await?;
 
     if let Some(code) = code {
         // Update password
-        sqlx::query("UPDATE users SET hashed_password=?, login_attempts=0 WHERE email=?")
+        sqlx::query("UPDATE users SET hashed_password=$1, login_attempts=0 WHERE email=$2")
             .bind(hash_password(password_reset_response.password.as_str()))
             .bind(code.1)
             .execute(&state.db_connection_pool)
             .await?;
         // Mark code as used
-        sqlx::query("UPDATE codes SET used=1 WHERE code=?")
+        sqlx::query("UPDATE codes SET used=true WHERE code=$1")
             .bind(code.0)
             .execute(&state.db_connection_pool)
             .await?;
