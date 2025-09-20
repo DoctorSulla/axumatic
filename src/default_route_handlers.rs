@@ -154,6 +154,7 @@ pub struct User {
     pub hashed_password: String,
     pub auth_level: String,
     pub login_attempts: i32,
+    pub registration_ts: i64,
 }
 
 // Used to extract the user from object from the username header
@@ -250,12 +251,15 @@ pub async fn register(
     );
 
     // Create a registration
-    sqlx::query("INSERT INTO USERS(email,username,hashed_password) values($1,$2,$3)")
-        .bind(&registration_details.email)
-        .bind(&registration_details.username)
-        .bind(hash_password(registration_details.password.as_str()))
-        .execute(&state.db_connection_pool)
-        .await?;
+    sqlx::query(
+        "INSERT INTO USERS(email,username,hashed_password,registration_ts) values($1,$2,$3,$4)",
+    )
+    .bind(&registration_details.email)
+    .bind(&registration_details.username)
+    .bind(hash_password(registration_details.password.as_str()))
+    .bind(Utc::now().timestamp())
+    .execute(&state.db_connection_pool)
+    .await?;
 
     event!(
         Level::INFO,

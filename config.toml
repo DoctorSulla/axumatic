@@ -1,5 +1,4 @@
 [database]
-file = "./database.db"
 pool_size = 20
 
 [email]

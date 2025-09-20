@@ -4,6 +4,7 @@
                 hashed_password VARCHAR(100),
                 login_attempts INTEGER DEFAULT 0,
                 auth_level VARCHAR(30) DEFAULT 'unverified',
+                registration_ts BIGINT,
                 PRIMARY KEY(email,username)
         );
 
