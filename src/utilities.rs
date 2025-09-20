@@ -2,7 +2,6 @@ use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
-use lettre::{Message, Transport};
 use rand::{thread_rng, Rng};
 use std::sync::Arc;
 
@@ -17,7 +16,7 @@ pub struct Email<'a> {
     pub body: String,
 }
 pub async fn send_email(state: Arc<AppState>, email: Email<'_>) -> Result<(), anyhow::Error> {
-    println!("The email to be sent to the user is {:?}", email);
+    println!("The email to be sent to the user is {email:?}");
     // let email = Message::builder()
     //     .from(email.from.parse()?)
     //     .reply_to(email.reply_to.unwrap_or_default().parse()?)

@@ -220,7 +220,7 @@ pub struct VerificationDetails {
 }
 
 pub async fn hello_world(user: User) -> Result<Html<String>, AppError> {
-    println!("The authenticated user is {:?}", user);
+    println!("The authenticated user is {user:?}");
     Ok(Html("Hello, what are you doing?".to_string()))
 }
 
@@ -276,8 +276,7 @@ pub async fn register(
         from: "registration@tld.com",
         subject: String::from("Verify your email"),
         body: format!(
-            "<p>Thank you for registering.</p> <p>Please verify for your email using the following code {}.</p>",
-            code
+            "<p>Thank you for registering.</p> <p>Please verify for your email using the following code {code}.</p>"
         ),
         reply_to: None,
     };
@@ -290,10 +289,10 @@ pub async fn register(
     .await?;
     send_email(state.clone(), email).await?;
 
-    return Ok(Json(AuthAndLoginResponse {
+    Ok(Json(AuthAndLoginResponse {
         response_type: ResponseType::RegistrationSuccess,
         message: "Registration successful".to_string(),
-    }));
+    }))
 }
 
 pub async fn add_code(
@@ -351,13 +350,13 @@ pub async fn login(
             .bind(expiry)
             .execute(&state.db_connection_pool)
             .await?;
-        return Ok((
+        Ok((
             header_map,
             Json(AuthAndLoginResponse {
                 response_type: ResponseType::LoginSuccess,
                 message: "Login successful".to_string(),
             }),
-        ));
+        ))
     } else {
         let _ = sqlx::query("UPDATE users SET login_attempts=$1 WHERE email=$2")
             .bind(user.login_attempts + 1)
@@ -463,9 +462,8 @@ pub async fn password_reset_initiate(
         subject: String::from("Password Reset"),
         body: format!(
             "<p>A password reset was requested for your account.</p> \
-            <p>Use this code to reset your password: {}</p> \
-            <p>If you did not request this, please ignore this email.</p>",
-            code
+            <p>Use this code to reset your password: {code}</p> \
+            <p>If you did not request this, please ignore this email.</p>"
         ),
         reply_to: None,
     };
