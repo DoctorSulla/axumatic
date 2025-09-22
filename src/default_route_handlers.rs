@@ -3,6 +3,7 @@ use axum::{
     extract::{FromRequestParts, Json, State},
     http::StatusCode,
     response::{Html, IntoResponse},
+    Form,
 };
 use chrono::Utc;
 use cookie::{time::Duration, Cookie};
@@ -35,6 +36,12 @@ pub struct PasswordResetCompleteRequest {
     pub code: String,
     pub password: String,
     pub confirm_password: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct GoogleToken {
+    credential: String,
+    g_csrf_token: String,
 }
 
 // Verification code types
@@ -316,6 +323,29 @@ pub async fn add_code(
     .execute(&state.db_connection_pool)
     .await?;
     Ok(())
+}
+
+pub async fn google_login(
+    State(state): State<Arc<AppState>>,
+    request_headers: HeaderMap,
+    Form(token): Form<GoogleToken>,
+) -> Result<(HeaderMap, Json<AuthAndLoginResponse>), AppError> {
+    let mut headers = HeaderMap::new();
+
+    // Validate CSRF token
+    // Validate JWT
+    // Check if email is already registered, either by Google or Username & Password
+    // Create a reg if not
+    // Return error if already registered with username and password
+    // Create session if registered with Google
+
+    Ok((
+        headers,
+        Json(AuthAndLoginResponse {
+            message: "Login successful".to_string(),
+            response_type: ResponseType::LoginSuccess,
+        }),
+    ))
 }
 
 pub async fn login(

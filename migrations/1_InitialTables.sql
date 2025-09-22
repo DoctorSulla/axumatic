@@ -5,6 +5,7 @@
                 login_attempts INTEGER DEFAULT 0,
                 auth_level VARCHAR(30) DEFAULT 'unverified',
                 registration_ts BIGINT,
+                identity_provider VARCHAR(30),
                 PRIMARY KEY(email,username)
         );
 

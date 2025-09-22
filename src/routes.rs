@@ -23,6 +23,10 @@ pub fn get_open_routes() -> Router<Arc<AppState>> {
         .route("/account/register", post(default_route_handlers::register))
         .route("/account/login", post(default_route_handlers::login))
         .route(
+            "/account/login/google",
+            post(default_route_handlers::google_login),
+        )
+        .route(
             "/account/resetPassword",
             post(default_route_handlers::password_reset_initiate),
         )
