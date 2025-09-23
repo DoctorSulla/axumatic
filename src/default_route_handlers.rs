@@ -66,6 +66,8 @@ pub struct AppError(anyhow::Error);
 // Errors specific to our app
 #[derive(Error, Debug)]
 pub enum ErrorList {
+    #[error("CSRF Token Mismatch")]
+    CsrfTokenMismatch,
     #[error("Email must contain an @, be greater than 3 characters and less than 300 characters")]
     InvalidEmail,
     #[error("Password must be between 8 and 100 characters")]
@@ -331,6 +333,18 @@ pub async fn google_login(
     Form(token): Form<GoogleToken>,
 ) -> Result<(HeaderMap, Json<AuthAndLoginResponse>), AppError> {
     let mut headers = HeaderMap::new();
+
+    if let Some(cookie_header) = headers.get("cookie") {
+        let cookies = Cookie::split_parse(cookie_header.to_str()?);
+        for cookie_result in cookies {
+            if let Ok(cookie) = cookie_result {
+                if cookie.name() == token.g_csrf_token {
+                    break;
+                }
+            }
+            return Err(AppError(ErrorList::CsrfTokenMismatch.into()));
+        }
+    }
 
     // Validate CSRF token
     // Validate JWT

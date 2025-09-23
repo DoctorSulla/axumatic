@@ -11,7 +11,7 @@ pub async fn validate_cookie(
     state: Arc<AppState>,
 ) -> Result<Username, anyhow::Error> {
     if let Some(cookies) = headers.get("cookie") {
-        for cookie_string in cookies.to_str().unwrap().split(';') {
+        for cookie_string in cookies.to_str()?.split(';') {
             let cookie = Cookie::parse(cookie_string)?;
             if cookie.name() == "session-key" {
                 let session = sqlx::query_as::<_, Username>(
