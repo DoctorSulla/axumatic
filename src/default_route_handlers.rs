@@ -15,8 +15,8 @@ use thiserror::Error;
 use tracing::{Level, event};
 use validations::*;
 
-use crate::AppState;
 use crate::utilities::*;
+use crate::{AppState, user::get_user_by_email};
 
 mod validations;
 
@@ -338,16 +338,20 @@ pub async fn google_login(
 ) -> Result<(HeaderMap, Json<AuthAndLoginResponse>), AppError> {
     let mut headers = HeaderMap::new();
 
+    let mut valid_cookie = false;
     if let Some(cookie_header) = headers.get("cookie") {
         let cookies = Cookie::split_parse(cookie_header.to_str()?);
         for cookie_result in cookies {
             if let Ok(cookie) = cookie_result {
-                if cookie.name() == token.g_csrf_token {
-                    break;
+                if cookie.name() == "g_csrf_token" && cookie.value() == token.g_csrf_token {
+                    valid_cookie = true;
                 }
             }
-            return Err(AppError(ErrorList::CsrfTokenMismatch.into()));
         }
+    }
+
+    if !valid_cookie {
+        return Err(AppError(ErrorList::CsrfTokenMismatch.into()));
     }
 
     let jwt = token.credential;
@@ -371,6 +375,7 @@ pub async fn google_login(
     if let (Some(email), Some(verified)) = (claims.email, claims.email_verified) {
         if is_email_registered(&email, state.clone()).await? {
             // Check registration type
+            let user = get_user_by_email(state.clone(), &email).await?;
             // If Google, log create a session else throw an error
         } else {
             if verified {

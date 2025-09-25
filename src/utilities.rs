@@ -55,10 +55,8 @@ pub fn generate_unique_id(length: u8) -> String {
         'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R',
         'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
     ];
-    let mut i: u8 = 0;
-    while i < length {
+    for _n in 0..length {
         id.push(character_set[rng.gen_range(0..character_set.len())]);
-        i += 1;
     }
     id
 }

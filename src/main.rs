@@ -18,6 +18,7 @@ mod config;
 mod default_route_handlers;
 mod middleware;
 mod routes;
+mod user;
 mod utilities;
 
 #[cfg(test)]

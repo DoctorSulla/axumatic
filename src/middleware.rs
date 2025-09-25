@@ -59,8 +59,7 @@ where
         let state = self.state.clone();
 
         Box::pin(async move {
-            let response: Response;
-            match validate_cookie(request.headers(), state).await {
+            let response: Response = match validate_cookie(request.headers(), state).await {
                 Ok(username) => {
                     request.headers_mut().insert(
                         "username",
@@ -68,12 +67,10 @@ where
                     );
 
                     let future = inner.call(request);
-                    response = future.await?;
+                    future.await?
                 }
-                _ => {
-                    response = http::StatusCode::UNAUTHORIZED.into_response();
-                }
-            }
+                _ => http::StatusCode::UNAUTHORIZED.into_response(),
+            };
             Ok(response)
         })
     }
