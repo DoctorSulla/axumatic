@@ -2,7 +2,9 @@ use argon2::{
     Argon2,
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
+use lettre::{Message, Transport};
 use rand::{Rng, thread_rng};
+
 use std::sync::Arc;
 
 use crate::AppState;
@@ -17,14 +19,16 @@ pub struct Email<'a> {
 }
 pub async fn send_email(state: Arc<AppState>, email: Email<'_>) -> Result<(), anyhow::Error> {
     println!("The email to be sent to the user is {email:?}");
-    // let email = Message::builder()
-    //     .from(email.from.parse()?)
-    //     .reply_to(email.reply_to.unwrap_or_default().parse()?)
-    //     .to(email.to.parse()?)
-    //     .subject(email.subject)
-    //     .body(email.body)?;
-    // Send the email via remote relay
-    //let _ = state.email_connection_pool.send(&email);
+    if state.config.email.send_emails {
+        let email = Message::builder()
+            .from(email.from.parse()?)
+            .reply_to(email.reply_to.unwrap_or_default().parse()?)
+            .to(email.to.parse()?)
+            .subject(email.subject)
+            .body(email.body)?;
+        //Send the email via remote relay
+        let _ = state.email_connection_pool.send(&email);
+    }
     Ok(())
 }
 

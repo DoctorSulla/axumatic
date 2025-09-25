@@ -1,11 +1,13 @@
 [database]
+username = "neondb_owner"
+connection_url = "ep-summer-wind-abumg0f3-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require"
 pool_size = 20
 
 [email]
 server_url = ""
 username = ""
-password = ""
 pool_size = 20
+send_emails = false
 
 [server]
 request_timeout = 30

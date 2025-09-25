@@ -1,7 +1,10 @@
 use crate::AppState;
-use crate::default_route_handlers::{ErrorList, Username};
+use crate::default_route_handlers::User;
+use crate::default_route_handlers::{AppError, ErrorList, Username};
+use crate::utilities::generate_unique_id;
 use chrono::Utc;
 use cookie::Cookie;
+use cookie::time::Duration;
 use http::HeaderMap;
 use std::sync::Arc;
 use tracing::{Level, event};
@@ -35,4 +38,25 @@ pub async fn validate_cookie(
 
     event!(Level::INFO, "No session key cookie was found");
     Err(ErrorList::Unauthorised.into())
+}
+
+pub async fn create_session(user: &User, state: Arc<AppState>) -> Result<Cookie, AppError> {
+    let session_key = generate_unique_id(100);
+    let session_cookie = Cookie::build(("session-key", session_key.clone()))
+        .max_age(Duration::days(1000))
+        .path("/")
+        .secure(true)
+        .http_only(true)
+        .build();
+
+    let expiry = Utc::now().timestamp() + (1000 * 24 * 60 * 60);
+
+    sqlx::query("INSERT INTO sessions(session_key,username, expiry) values($1,$2,$3)")
+        .bind(&session_key)
+        .bind(&user.username)
+        .bind(expiry)
+        .execute(&state.db_connection_pool)
+        .await?;
+
+    Ok(session_cookie)
 }

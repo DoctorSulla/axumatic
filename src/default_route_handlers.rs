@@ -5,8 +5,8 @@ use axum::{
     response::{Html, IntoResponse},
 };
 use chrono::Utc;
-use cookie::{Cookie, time::Duration};
-use http::{header, header::HeaderMap};
+use cookie::Cookie;
+use http::header::{self, HeaderMap, SET_COOKIE};
 use jwt_verifier::JwtVerifierClient;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -15,8 +15,8 @@ use thiserror::Error;
 use tracing::{Level, event};
 use validations::*;
 
-use crate::utilities::*;
 use crate::{AppState, user::get_user_by_email};
+use crate::{auth::create_session, utilities::*};
 
 mod validations;
 
@@ -94,6 +94,8 @@ pub enum ErrorList {
     UnexpectedJwtError,
     #[error("Invalid JWT")]
     InvalidJwt,
+    #[error("Email is already registered with another identity provider")]
+    EmailRegisteredWithAnotherProvider,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -168,6 +170,7 @@ pub struct User {
     pub auth_level: String,
     pub login_attempts: i32,
     pub registration_ts: i64,
+    pub identity_provider: String,
 }
 
 // Used to extract the user from object from the username header
@@ -265,12 +268,13 @@ pub async fn register(
 
     // Create a registration
     sqlx::query(
-        "INSERT INTO USERS(email,username,hashed_password,registration_ts) values($1,$2,$3,$4)",
+        "INSERT INTO USERS(email,username,hashed_password,registration_ts,identity_provider) values($1,$2,$3,$4,$5)",
     )
     .bind(&registration_details.email)
     .bind(&registration_details.username)
     .bind(hash_password(registration_details.password.as_str()))
     .bind(Utc::now().timestamp())
+    .bind("default")
     .execute(&state.db_connection_pool)
     .await?;
 
@@ -339,7 +343,7 @@ pub async fn google_login(
     let mut headers = HeaderMap::new();
 
     let mut valid_cookie = false;
-    if let Some(cookie_header) = headers.get("cookie") {
+    if let Some(cookie_header) = request_headers.get("cookie") {
         let cookies = Cookie::split_parse(cookie_header.to_str()?);
         for cookie_result in cookies {
             if let Ok(cookie) = cookie_result {
@@ -373,17 +377,26 @@ pub async fn google_login(
     };
 
     if let (Some(email), Some(verified)) = (claims.email, claims.email_verified) {
+        let user = get_user_by_email(state.clone(), &email).await?;
         if is_email_registered(&email, state.clone()).await? {
             // Check registration type
-            let user = get_user_by_email(state.clone(), &email).await?;
-            // If Google, log create a session else throw an error
+            if user.identity_provider == "google" {
+                let session_cookie = create_session(&user, state).await?;
+                headers.insert(SET_COOKIE, session_cookie.to_string().parse().unwrap());
+            } else {
+                return Err(AppError(
+                    ErrorList::EmailRegisteredWithAnotherProvider.into(),
+                ));
+            }
         } else {
             if verified {
                 //Create new verified reg
-                // Create a session
+                let session_cookie = create_session(&user, state).await?;
+                headers.insert(SET_COOKIE, session_cookie.to_string().parse().unwrap());
             } else {
                 // Create new unverified reg and send email
-                // Create a session
+                let session_cookie = create_session(&user, state).await?;
+                headers.insert(SET_COOKIE, session_cookie.to_string().parse().unwrap());
             }
         }
     }
@@ -415,24 +428,11 @@ pub async fn login(
     }
     let mut header_map = HeaderMap::new();
     if verify_password(&user.hashed_password, &login_details.password) {
-        let session_key = generate_unique_id(100);
-        let session_cookie = Cookie::build(("session-key", &session_key))
-            .max_age(Duration::days(1000))
-            .path("/")
-            .secure(true)
-            .http_only(true)
-            .build();
+        let session_cookie = create_session(&user, state).await?;
         header_map.insert(
             header::SET_COOKIE,
             session_cookie.to_string().parse().unwrap(),
         );
-        let expiry = Utc::now().timestamp() + (1000 * 24 * 60 * 60);
-        sqlx::query("INSERT INTO sessions(session_key,username, expiry) values($1,$2,$3)")
-            .bind(session_key)
-            .bind(user.username)
-            .bind(expiry)
-            .execute(&state.db_connection_pool)
-            .await?;
         Ok((
             header_map,
             Json(AuthAndLoginResponse {

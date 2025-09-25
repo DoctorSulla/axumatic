@@ -1,10 +1,10 @@
-use crate::config::{AppState, get_config};
+use crate::config::get_config;
 use crate::default_route_handlers::{
     AuthAndLoginResponse, ChangePassword, LoginDetails, PasswordResetCompleteRequest,
     PasswordResetInitiateRequest, ResponseType,
 };
 use crate::utilities::generate_unique_id;
-use crate::{default_route_handlers::RegistrationDetails, get_app, get_app_state, migrations};
+use crate::{default_route_handlers::RegistrationDetails, get_app, get_app_state};
 use http::header::{CONTENT_TYPE, COOKIE};
 use http::{HeaderValue, StatusCode};
 use reqwest::header::HeaderMap;
@@ -12,7 +12,6 @@ use reqwest::{Client, Response};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use sqlx::prelude::FromRow;
-use std::sync::Arc;
 
 #[derive(Serialize, Deserialize, FromRow, Debug)]
 struct Code {
