@@ -1,23 +1,22 @@
 use axum::{
-    async_trait,
+    Form, async_trait,
     extract::{FromRequestParts, Json, State},
     http::StatusCode,
     response::{Html, IntoResponse},
-    Form,
 };
 use chrono::Utc;
-use cookie::{time::Duration, Cookie};
+use cookie::{Cookie, time::Duration};
 use http::{header, header::HeaderMap};
 use jwt_verifier::JwtVerifierClient;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use std::sync::Arc;
 use thiserror::Error;
-use tracing::{event, Level};
+use tracing::{Level, event};
 use validations::*;
 
-use crate::utilities::*;
 use crate::AppState;
+use crate::utilities::*;
 
 mod validations;
 
@@ -190,7 +189,7 @@ impl FromRequestParts<Arc<AppState>> for User {
                 return Err((
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "Unexpected error with header value",
-                ))
+                ));
             }
         };
         let user = sqlx::query_as::<_, User>("select * from users where username=$1")
@@ -208,7 +207,7 @@ impl FromRequestParts<Arc<AppState>> for User {
                 return Err((
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "Unexpected error fetching user",
-                ))
+                ));
             }
         };
         Err((StatusCode::INTERNAL_SERVER_ERROR, "Error fetching user"))

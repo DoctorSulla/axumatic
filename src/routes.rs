@@ -1,7 +1,7 @@
-use crate::{default_route_handlers, AppState};
+use crate::{AppState, default_route_handlers};
 use axum::{
-    routing::{get, patch, post},
     Router,
+    routing::{get, patch, post},
 };
 use std::sync::Arc;
 

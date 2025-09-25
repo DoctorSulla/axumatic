@@ -1,4 +1,4 @@
-use crate::config::{get_config, AppState};
+use crate::config::{AppState, get_config};
 use crate::default_route_handlers::{
     AuthAndLoginResponse, ChangePassword, LoginDetails, PasswordResetCompleteRequest,
     PasswordResetInitiateRequest, ResponseType,

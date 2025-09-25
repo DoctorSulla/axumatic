@@ -10,7 +10,7 @@ use std::{
 };
 use tower::{Layer, Service};
 
-use crate::{auth::validate_cookie, AppState};
+use crate::{AppState, auth::validate_cookie};
 
 #[derive(Clone)]
 pub struct ValidateSessionLayer {
@@ -60,16 +60,19 @@ where
 
         Box::pin(async move {
             let response: Response;
-            if let Ok(username) = validate_cookie(request.headers(), state).await {
-                request.headers_mut().insert(
-                    "username",
-                    HeaderValue::from_str(username.0.as_str()).unwrap(),
-                );
+            match validate_cookie(request.headers(), state).await {
+                Ok(username) => {
+                    request.headers_mut().insert(
+                        "username",
+                        HeaderValue::from_str(username.0.as_str()).unwrap(),
+                    );
 
-                let future = inner.call(request);
-                response = future.await?;
-            } else {
-                response = http::StatusCode::UNAUTHORIZED.into_response();
+                    let future = inner.call(request);
+                    response = future.await?;
+                }
+                _ => {
+                    response = http::StatusCode::UNAUTHORIZED.into_response();
+                }
             }
             Ok(response)
         })

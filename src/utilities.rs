@@ -1,8 +1,8 @@
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
-use rand::{thread_rng, Rng};
+use rand::{Rng, thread_rng};
 use std::sync::Arc;
 
 use crate::AppState;

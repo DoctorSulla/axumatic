@@ -1,16 +1,16 @@
 use lettre::{
-    transport::smtp::{
-        authentication::{Credentials, Mechanism},
-        PoolConfig,
-    },
     SmtpTransport,
+    transport::smtp::{
+        PoolConfig,
+        authentication::{Credentials, Mechanism},
+    },
 };
 use serde::Deserialize;
 use std::env;
 use std::{fs::File, io::prelude::*};
 use std::{str::FromStr, time::Duration};
 
-use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
+use sqlx::{Pool, Postgres, postgres::PgPoolOptions};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -106,7 +106,9 @@ impl Config {
         let (_key, password) = vars
             .find(|kv| kv.0 == "PG_PASSWORD")
             .expect("PG_PASSWORD variable not set");
-        let connection_string = format!("postgresql://neondb_owner:{password}@ep-summer-wind-abumg0f3-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require");
+        let connection_string = format!(
+            "postgresql://neondb_owner:{password}@ep-summer-wind-abumg0f3-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require"
+        );
 
         let connection_options =
             sqlx::postgres::PgConnectOptions::from_str(&connection_string).unwrap();

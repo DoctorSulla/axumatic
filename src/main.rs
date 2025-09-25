@@ -11,7 +11,7 @@ use tower_http::{
     services::{ServeDir, ServeFile},
     timeout::TimeoutLayer,
 };
-use tracing::{event, span, Level};
+use tracing::{Level, event, span};
 
 mod auth;
 mod config;

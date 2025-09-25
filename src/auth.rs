@@ -1,10 +1,10 @@
-use crate::default_route_handlers::{ErrorList, Username};
 use crate::AppState;
+use crate::default_route_handlers::{ErrorList, Username};
 use chrono::Utc;
 use cookie::Cookie;
 use http::HeaderMap;
 use std::sync::Arc;
-use tracing::{event, Level};
+use tracing::{Level, event};
 
 pub async fn validate_cookie(
     headers: &HeaderMap,
