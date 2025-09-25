@@ -52,3 +52,17 @@ pub async fn is_unique(
     }
     Ok(true)
 }
+
+pub async fn is_email_registered(email: &String, state: Arc<AppState>) -> Result<bool, ErrorList> {
+    let email = sqlx::query("SELECT email FROM users WHERE email=?")
+        .bind(email)
+        .fetch_optional(&state.db_connection_pool)
+        .await;
+
+    if let Ok(email) = email {
+        if email.is_some() {
+            return Err(ErrorList::EmailAlreadyRegistered);
+        }
+    }
+    Ok(true)
+}

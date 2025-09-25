@@ -8,6 +8,7 @@ use axum::{
 use chrono::Utc;
 use cookie::{time::Duration, Cookie};
 use http::{header, header::HeaderMap};
+use jwt_verifier::JwtVerifierClient;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use std::sync::Arc;
@@ -90,6 +91,10 @@ pub enum ErrorList {
     TooManyLoginAttempts,
     #[error("Unauthorised")]
     Unauthorised,
+    #[error("Unexpected error verifying JWT")]
+    UnexpectedJwtError,
+    #[error("Invalid JWT")]
+    InvalidJwt,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -346,12 +351,38 @@ pub async fn google_login(
         }
     }
 
-    // Validate CSRF token
-    // Validate JWT
-    // Check if email is already registered, either by Google or Username & Password
-    // Create a reg if not
-    // Return error if already registered with username and password
-    // Create session if registered with Google
+    let jwt = token.credential;
+    let mut client = match JwtVerifierClient::new().await {
+        Ok(v) => v,
+        Err(_e) => return Err(AppError(ErrorList::UnexpectedJwtError.into())),
+    };
+
+    let claims = match JwtVerifierClient::verify(
+        &mut client,
+        &jwt,
+        true,
+        "988343938519-vle7kps2l5f6cdnjluibda25o66h2jpn.apps.googleusercontent.com",
+    )
+    .await
+    {
+        Ok(claims) => claims,
+        Err(_e) => return Err(AppError(ErrorList::InvalidJwt.into())),
+    };
+
+    if let (Some(email), Some(verified)) = (claims.email, claims.email_verified) {
+        if is_email_registered(&email, state.clone()).await? {
+            // Check registration type
+            // If Google, log create a session else throw an error
+        } else {
+            if verified {
+                //Create new verified reg
+                // Create a session
+            } else {
+                // Create new unverified reg and send email
+                // Create a session
+            }
+        }
+    }
 
     Ok((
         headers,
