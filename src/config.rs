@@ -139,8 +139,9 @@ impl Config {
 
         event!(
             Level::INFO,
-            "Attempting to connect with {}",
-            connection_string
+            "Attempting to connect to Postgres with {}@{}",
+            &self.database.username,
+            &self.database.connection_url
         );
 
         let connection_options =
