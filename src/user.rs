@@ -1,7 +1,20 @@
 use anyhow::anyhow;
+use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
 
-use crate::{config::AppState, default_route_handlers::User};
+use crate::config::AppState;
 use std::sync::Arc;
+
+#[derive(Serialize, Deserialize, Debug, FromRow)]
+pub struct User {
+    pub username: String,
+    pub email: String,
+    pub hashed_password: String,
+    pub auth_level: String,
+    pub login_attempts: i32,
+    pub registration_ts: i64,
+    pub identity_provider: String,
+}
 
 pub async fn get_user_by_email(state: Arc<AppState>, email: &str) -> Result<User, anyhow::Error> {
     let user = sqlx::query_as::<_, User>("select * from users where username=$1")

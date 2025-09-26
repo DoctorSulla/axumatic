@@ -1,8 +1,12 @@
+use crate::{
+    auth::{IdentityProvider, add_code, create_registration, send_verification_email},
+    user::User,
+};
 use axum::{
     Form, async_trait,
     extract::{FromRequestParts, Json, State},
     http::StatusCode,
-    response::{Html, IntoResponse},
+    response::IntoResponse,
 };
 use chrono::Utc;
 use cookie::Cookie;
@@ -162,17 +166,6 @@ pub struct RegistrationDetails {
     pub confirm_password: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, FromRow)]
-pub struct User {
-    pub username: String,
-    pub email: String,
-    pub hashed_password: String,
-    pub auth_level: String,
-    pub login_attempts: i32,
-    pub registration_ts: i64,
-    pub identity_provider: String,
-}
-
 // Used to extract the user from object from the username header
 #[async_trait]
 impl FromRequestParts<Arc<AppState>> for User {
@@ -236,11 +229,6 @@ pub struct VerificationDetails {
     pub code: String,
 }
 
-pub async fn hello_world(user: User) -> Result<Html<String>, AppError> {
-    println!("The authenticated user is {user:?}");
-    Ok(Html("Hello, what are you doing?".to_string()))
-}
-
 pub async fn register(
     State(state): State<Arc<AppState>>,
     Json(registration_details): Json<RegistrationDetails>,
@@ -259,80 +247,19 @@ pub async fn register(
         return Err(ErrorList::NonMatchingPasswords.into());
     }
 
-    event!(
-        Level::INFO,
-        "Attempting to create registration for email {} and username {}",
-        registration_details.email,
-        registration_details.username
-    );
-
-    // Create a registration
-    sqlx::query(
-        "INSERT INTO USERS(email,username,hashed_password,registration_ts,identity_provider) values($1,$2,$3,$4,$5)",
-    )
-    .bind(&registration_details.email)
-    .bind(&registration_details.username)
-    .bind(hash_password(registration_details.password.as_str()))
-    .bind(Utc::now().timestamp())
-    .bind("default")
-    .execute(&state.db_connection_pool)
-    .await?;
-
-    event!(
-        Level::INFO,
-        "Attempting to send a verification email to {}",
-        registration_details.email
-    );
-
-    // Send an email
-    let to = format!(
-        "{} <{}>",
-        registration_details.username, registration_details.email
-    );
-
-    let code = generate_unique_id(8);
-
-    let email = Email {
-        to: to.as_str(),
-        from: "registration@tld.com",
-        subject: String::from("Verify your email"),
-        body: format!(
-            "<p>Thank you for registering.</p> <p>Please verify for your email using the following code {code}.</p>"
-        ),
-        reply_to: None,
-    };
-    add_code(
+    create_registration(
+        &registration_details,
         state.clone(),
-        &registration_details.email,
-        &code,
-        CodeType::EmailVerification,
+        IdentityProvider::Default,
     )
     .await?;
-    send_email(state.clone(), email).await?;
+
+    send_verification_email(&registration_details, state.clone()).await?;
 
     Ok(Json(AuthAndLoginResponse {
         response_type: ResponseType::RegistrationSuccess,
         message: "Registration successful".to_string(),
     }))
-}
-
-pub async fn add_code(
-    state: Arc<AppState>,
-    email: &String,
-    code: &String,
-    code_type: CodeType,
-) -> Result<(), anyhow::Error> {
-    let _created = sqlx::query(
-        "INSERT INTO CODES(code_type,email,code,created_ts,expiry_ts) values($1,$2,$3,$4,$5)",
-    )
-    .bind(Into::<String>::into(code_type))
-    .bind(email)
-    .bind(code)
-    .bind(Utc::now().timestamp())
-    .bind(Utc::now().timestamp() + 24 * 3600)
-    .execute(&state.db_connection_pool)
-    .await?;
-    Ok(())
 }
 
 pub async fn google_login(
@@ -345,16 +272,15 @@ pub async fn google_login(
     let mut valid_cookie = false;
     if let Some(cookie_header) = request_headers.get("cookie") {
         let cookies = Cookie::split_parse(cookie_header.to_str()?);
-        for cookie_result in cookies {
-            if let Ok(cookie) = cookie_result {
-                if cookie.name() == "g_csrf_token" && cookie.value() == token.g_csrf_token {
-                    valid_cookie = true;
-                }
+        for cookie in cookies.flatten() {
+            if cookie.name() == "g_csrf_token" && cookie.value() == token.g_csrf_token {
+                valid_cookie = true;
             }
         }
     }
 
     if !valid_cookie {
+        event!(Level::WARN, "CSRF error");
         return Err(AppError(ErrorList::CsrfTokenMismatch.into()));
     }
 
@@ -377,26 +303,54 @@ pub async fn google_login(
     };
 
     if let (Some(email), Some(verified)) = (claims.email, claims.email_verified) {
-        let user = get_user_by_email(state.clone(), &email).await?;
         if is_email_registered(&email, state.clone()).await? {
+            let user = get_user_by_email(state.clone(), &email).await?;
             // Check registration type
             if user.identity_provider == "google" {
                 let session_cookie = create_session(&user, state).await?;
-                headers.insert(SET_COOKIE, session_cookie.to_string().parse().unwrap());
+                headers.insert(SET_COOKIE, session_cookie.to_string().parse()?);
             } else {
                 return Err(AppError(
                     ErrorList::EmailRegisteredWithAnotherProvider.into(),
                 ));
             }
         } else {
+            let registration_details = RegistrationDetails {
+                username: String::new(),
+                email,
+                password: String::new(),
+                confirm_password: String::new(),
+            };
             if verified {
                 //Create new verified reg
-                let session_cookie = create_session(&user, state).await?;
-                headers.insert(SET_COOKIE, session_cookie.to_string().parse().unwrap());
+                create_registration(
+                    &registration_details,
+                    state.clone(),
+                    IdentityProvider::Google,
+                )
+                .await?;
+
+                sqlx::query("UPDATE users SET auth_level = 'verified' WHERE email = $1")
+                    .bind(&registration_details.email)
+                    .execute(&state.db_connection_pool)
+                    .await?;
+
+                let user = get_user_by_email(state.clone(), &registration_details.email).await?;
+                let session_cookie = create_session(&user, state.clone()).await?;
+                headers.insert(SET_COOKIE, session_cookie.to_string().parse()?);
             } else {
                 // Create new unverified reg and send email
-                let session_cookie = create_session(&user, state).await?;
-                headers.insert(SET_COOKIE, session_cookie.to_string().parse().unwrap());
+                create_registration(
+                    &registration_details,
+                    state.clone(),
+                    IdentityProvider::Google,
+                )
+                .await?;
+
+                let user = get_user_by_email(state.clone(), &registration_details.email).await?;
+                send_verification_email(&registration_details, state.clone()).await?;
+                let session_cookie = create_session(&user, state.clone()).await?;
+                headers.insert(SET_COOKIE, session_cookie.to_string().parse()?);
             }
         }
     }
@@ -423,7 +377,13 @@ pub async fn login(
         Some(i) => i,
         None => return Err(ErrorList::IncorrectUsername.into()),
     };
+
+    if user.identity_provider != "default" {
+        return Err(ErrorList::EmailRegisteredWithAnotherProvider.into());
+    }
+
     if user.login_attempts >= state.config.server.max_unsuccessful_login_attempts {
+        event!(Level::WARN, "Account locked due to too many login attempts");
         return Err(ErrorList::TooManyLoginAttempts.into());
     }
     let mut header_map = HeaderMap::new();

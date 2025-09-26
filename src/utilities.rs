@@ -5,6 +5,8 @@ use argon2::{
 use lettre::{Message, Transport};
 use rand::{Rng, thread_rng};
 
+use tracing::{Level, event};
+
 use std::sync::Arc;
 
 use crate::AppState;
@@ -18,7 +20,10 @@ pub struct Email<'a> {
     pub body: String,
 }
 pub async fn send_email(state: Arc<AppState>, email: Email<'_>) -> Result<(), anyhow::Error> {
-    println!("The email to be sent to the user is {email:?}");
+    event!(Level::INFO, "The email to be sent to the user is {:?}", {
+        &email
+    });
+
     if state.config.email.send_emails {
         let email = Message::builder()
             .from(email.from.parse()?)

@@ -1,13 +1,37 @@
 use crate::AppState;
-use crate::default_route_handlers::User;
-use crate::default_route_handlers::{AppError, ErrorList, Username};
-use crate::utilities::generate_unique_id;
+use crate::default_route_handlers::{AppError, CodeType, ErrorList, RegistrationDetails, Username};
+use crate::user::User;
+use crate::utilities::{Email, generate_unique_id, hash_password, send_email};
 use chrono::Utc;
 use cookie::Cookie;
 use cookie::time::Duration;
 use http::HeaderMap;
 use std::sync::Arc;
 use tracing::{Level, event};
+
+pub enum IdentityProvider {
+    Google,
+    Default,
+}
+
+impl From<String> for IdentityProvider {
+    fn from(value: String) -> Self {
+        match value.to_lowercase().as_str() {
+            "default" => Self::Default,
+            "google" => Self::Google,
+            _ => Self::Default,
+        }
+    }
+}
+
+impl From<IdentityProvider> for String {
+    fn from(value: IdentityProvider) -> Self {
+        match value {
+            IdentityProvider::Google => "google".to_string(),
+            IdentityProvider::Default => "default".to_string(),
+        }
+    }
+}
 
 pub async fn validate_cookie(
     headers: &HeaderMap,
@@ -40,7 +64,7 @@ pub async fn validate_cookie(
     Err(ErrorList::Unauthorised.into())
 }
 
-pub async fn create_session(user: &User, state: Arc<AppState>) -> Result<Cookie, AppError> {
+pub async fn create_session(user: &User, state: Arc<AppState>) -> Result<Cookie<'_>, AppError> {
     let session_key = generate_unique_id(100);
     let session_cookie = Cookie::build(("session-key", session_key.clone()))
         .max_age(Duration::days(1000))
@@ -59,4 +83,87 @@ pub async fn create_session(user: &User, state: Arc<AppState>) -> Result<Cookie,
         .await?;
 
     Ok(session_cookie)
+}
+
+pub async fn create_registration(
+    registration_details: &RegistrationDetails,
+    state: Arc<AppState>,
+    identity_provider: IdentityProvider,
+) -> Result<(), AppError> {
+    event!(
+        Level::INFO,
+        "Attempting to create registration for email {} and username {}",
+        registration_details.email,
+        registration_details.username
+    );
+
+    // Create a registration
+    sqlx::query(
+        "INSERT INTO USERS(email,username,hashed_password,registration_ts,identity_provider) values($1,$2,$3,$4,$5)",
+    )
+    .bind(&registration_details.email)
+    .bind(&registration_details.username)
+    .bind(hash_password(registration_details.password.as_str()))
+    .bind(Utc::now().timestamp())
+    .bind(String::from(identity_provider))
+    .execute(&state.db_connection_pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn send_verification_email(
+    registration_details: &RegistrationDetails,
+    state: Arc<AppState>,
+) -> Result<(), AppError> {
+    event!(
+        Level::INFO,
+        "Attempting to send a verification email to {}",
+        registration_details.email
+    );
+
+    // Send an email
+    let to = format!(
+        "{} <{}>",
+        registration_details.username, registration_details.email
+    );
+
+    let code = generate_unique_id(8);
+
+    let email = Email {
+        to: to.as_str(),
+        from: "registration@tld.com",
+        subject: String::from("Verify your email"),
+        body: format!(
+            "<p>Thank you for registering.</p> <p>Please verify for your email using the following code {code}.</p>"
+        ),
+        reply_to: None,
+    };
+    add_code(
+        state.clone(),
+        &registration_details.email,
+        &code,
+        CodeType::EmailVerification,
+    )
+    .await?;
+    send_email(state.clone(), email).await?;
+    Ok(())
+}
+
+pub async fn add_code(
+    state: Arc<AppState>,
+    email: &String,
+    code: &String,
+    code_type: CodeType,
+) -> Result<(), anyhow::Error> {
+    let _created = sqlx::query(
+        "INSERT INTO CODES(code_type,email,code,created_ts,expiry_ts) values($1,$2,$3,$4,$5)",
+    )
+    .bind(Into::<String>::into(code_type))
+    .bind(email)
+    .bind(code)
+    .bind(Utc::now().timestamp())
+    .bind(Utc::now().timestamp() + 24 * 3600)
+    .execute(&state.db_connection_pool)
+    .await?;
+    Ok(())
 }

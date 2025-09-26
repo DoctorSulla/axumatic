@@ -1,13 +1,12 @@
 use crate::{AppState, default_route_handlers};
 use axum::{
     Router,
-    routing::{get, patch, post},
+    routing::{patch, post},
 };
 use std::sync::Arc;
 
 pub fn get_protected_routes() -> Router<Arc<AppState>> {
     Router::new()
-        .route("/", get(default_route_handlers::hello_world))
         .route(
             "/account/verifyEmail",
             post(default_route_handlers::verify_email),
