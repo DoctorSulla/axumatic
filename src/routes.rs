@@ -1,7 +1,7 @@
 use crate::{AppState, default_route_handlers};
 use axum::{
     Router,
-    routing::{patch, post},
+    routing::{get, patch, post},
 };
 use std::sync::Arc;
 
@@ -15,6 +15,8 @@ pub fn get_protected_routes() -> Router<Arc<AppState>> {
             "/account/changePassword",
             patch(default_route_handlers::change_password),
         )
+        .route("/account/profile", get(default_route_handlers::get_profile))
+        .route("/account/logout", get(default_route_handlers::logout))
 }
 
 pub fn get_open_routes() -> Router<Arc<AppState>> {

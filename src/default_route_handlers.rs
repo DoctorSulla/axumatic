@@ -1,6 +1,6 @@
 use crate::{
     auth::{IdentityProvider, add_code, create_registration, send_verification_email},
-    user::User,
+    user::{Profile, User},
 };
 use axum::{
     Form, async_trait,
@@ -10,6 +10,7 @@ use axum::{
 };
 use chrono::Utc;
 use cookie::Cookie;
+use cookie::time::Duration;
 use http::header::{self, HeaderMap, SET_COOKIE};
 use jwt_verifier::JwtVerifierClient;
 use serde::{Deserialize, Serialize};
@@ -553,4 +554,29 @@ pub async fn password_reset_complete(
         message: "Password reset complete".to_string(),
         response_type: ResponseType::PasswordResetSuccess,
     }))
+}
+
+pub async fn get_profile(user: User) -> Result<Json<Profile>, AppError> {
+    Ok(Json(Profile::from(user)))
+}
+
+pub async fn logout(State(state): State<Arc<AppState>>, user: User) -> Result<HeaderMap, AppError> {
+    sqlx::query("DELETE FROM sessions WHERE email=$1")
+        .bind(&user.email)
+        .execute(&state.db_connection_pool)
+        .await?;
+
+    let logout_cookie = Cookie::build(("session-key", ""))
+        .max_age(Duration::days(-1000))
+        .path("/")
+        .secure(true)
+        .http_only(true)
+        .build();
+
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::SET_COOKIE,
+        logout_cookie.to_string().parse().unwrap(),
+    );
+    Ok(headers)
 }

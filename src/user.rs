@@ -16,6 +16,25 @@ pub struct User {
     pub identity_provider: String,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Profile {
+    pub username: String,
+    pub email: String,
+    pub auth_level: String,
+    pub identity_provider: String,
+}
+
+impl From<User> for Profile {
+    fn from(value: User) -> Self {
+        Self {
+            username: value.username,
+            email: value.email,
+            auth_level: value.auth_level,
+            identity_provider: value.identity_provider,
+        }
+    }
+}
+
 pub async fn get_user_by_email(state: Arc<AppState>, email: &str) -> Result<User, anyhow::Error> {
     let user = sqlx::query_as::<_, User>("select * from users where username=$1")
         .bind(email)
