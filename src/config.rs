@@ -9,6 +9,7 @@ use serde::Deserialize;
 use std::env;
 use std::{fs::File, io::prelude::*};
 use std::{str::FromStr, time::Duration};
+use tracing::{Level, event};
 
 use sqlx::{Pool, Postgres, postgres::PgPoolOptions};
 
@@ -124,9 +125,16 @@ impl Config {
     }
 
     pub async fn get_db_pool(&self) -> Pool<Postgres> {
+        let connection_string = &self.database.get_connection_string();
+
+        event!(
+            Level::INFO,
+            "Attempting to connect with {}",
+            connection_string
+        );
+
         let connection_options =
-            sqlx::postgres::PgConnectOptions::from_str(&self.database.get_connection_string())
-                .unwrap();
+            sqlx::postgres::PgConnectOptions::from_str(&connection_string).unwrap();
 
         PgPoolOptions::new()
             .max_connections(self.database.pool_size)

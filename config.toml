@@ -1,6 +1,8 @@
 [database]
-username = "neondb_owner"
-connection_url = "ep-summer-wind-abumg0f3-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require"
+#username = "neondb_owner"
+#connection_url = "ep-summer-wind-abumg0f3-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require"
+username = "postgres"
+connection_url = "localhost/postgres"
 pool_size = 20
 
 [email]
