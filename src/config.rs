@@ -97,8 +97,18 @@ impl From<AuthLevel> for String {
 }
 
 pub fn get_config() -> Config {
+    let mut vars = env::vars();
+    let (_key, environment) = vars
+        .find(|kv| kv.0 == "AXUMATIC_ENVIRONMENT")
+        .unwrap_or_else(|| ("".to_string(), "TEST".to_string()));
+
     // Open and parse the config file
-    let mut file = File::open("./config.toml").expect("Couldn't open config file");
+    let mut file = match environment.as_str() {
+        "TEST" => File::open("./test-config.toml").expect("Couldn't open config file"),
+        "PROD" => File::open("./config.toml").expect("Couldn't open config file"),
+        _ => File::open("./test-config.toml").expect("Couldn't open config file"),
+    };
+
     let mut contents = String::new();
     file.read_to_string(&mut contents)
         .expect("Couldn't read config");
@@ -134,7 +144,7 @@ impl Config {
         );
 
         let connection_options =
-            sqlx::postgres::PgConnectOptions::from_str(&connection_string).unwrap();
+            sqlx::postgres::PgConnectOptions::from_str(connection_string).unwrap();
 
         PgPoolOptions::new()
             .max_connections(self.database.pool_size)

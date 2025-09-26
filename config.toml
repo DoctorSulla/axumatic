@@ -1,17 +1,15 @@
 [database]
-#username = "neondb_owner"
-#connection_url = "ep-summer-wind-abumg0f3-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require"
-username = "postgres"
-connection_url = "localhost/postgres"
-pool_size = 20
+username = "neondb_owner"
+connection_url = "ep-summer-wind-abumg0f3-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require"
+pool_size = 5
 
 [email]
 server_url = ""
 username = ""
-pool_size = 20
+pool_size = 5
 send_emails = false
 
 [server]
-request_timeout = 30
-port = 3000
+request_timeout = 20
+port = 80
 max_unsuccessful_login_attempts = 10

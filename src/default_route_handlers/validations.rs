@@ -34,10 +34,10 @@ pub async fn is_unique(
         .fetch_optional(&state.db_connection_pool)
         .await;
 
-    if let Ok(user) = username {
-        if user.is_some() {
-            return Err(ErrorList::UsernameAlreadyRegistered);
-        }
+    if let Ok(user) = username
+        && user.is_some()
+    {
+        return Err(ErrorList::UsernameAlreadyRegistered);
     }
 
     let email = sqlx::query("SELECT email FROM users WHERE email=?")
@@ -45,10 +45,10 @@ pub async fn is_unique(
         .fetch_optional(&state.db_connection_pool)
         .await;
 
-    if let Ok(email) = email {
-        if email.is_some() {
-            return Err(ErrorList::EmailAlreadyRegistered);
-        }
+    if let Ok(email) = email
+        && email.is_some()
+    {
+        return Err(ErrorList::EmailAlreadyRegistered);
     }
     Ok(true)
 }
@@ -59,10 +59,10 @@ pub async fn is_email_registered(email: &String, state: Arc<AppState>) -> Result
         .fetch_optional(&state.db_connection_pool)
         .await;
 
-    if let Ok(email) = email {
-        if email.is_some() {
-            return Err(ErrorList::EmailAlreadyRegistered);
-        }
+    if let Ok(email) = email
+        && email.is_some()
+    {
+        return Err(ErrorList::EmailAlreadyRegistered);
     }
     Ok(true)
 }
