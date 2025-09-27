@@ -7,10 +7,7 @@ use routes::*;
 use sqlx::migrate;
 use std::{sync::Arc, time::Duration};
 use tower::ServiceBuilder;
-use tower_http::{
-    services::{ServeDir, ServeFile},
-    timeout::TimeoutLayer,
-};
+use tower_http::{cors::CorsLayer, timeout::TimeoutLayer};
 use tracing::{Level, event, span};
 
 mod auth;
@@ -50,7 +47,6 @@ async fn main() {
 }
 
 pub fn get_app(state: Arc<AppState>) -> Router {
-    let assets = ServeDir::new("assets").not_found_service(ServeFile::new("assets/404.html"));
     let protected_routes = get_protected_routes();
     let open_routes = get_open_routes();
 
@@ -59,12 +55,12 @@ pub fn get_app(state: Arc<AppState>) -> Router {
         .layer(ServiceBuilder::new().layer(ValidateSessionLayer::new(state.clone())))
         .merge(open_routes)
         .with_state(state.clone())
-        .nest_service("/assets", assets)
         .layer(
             ServiceBuilder::new().layer(TimeoutLayer::new(Duration::from_secs(
                 state.config.server.request_timeout,
             ))),
         )
+        .layer(ServiceBuilder::new().layer(CorsLayer::very_permissive()))
 }
 
 pub async fn get_app_state() -> Arc<AppState> {

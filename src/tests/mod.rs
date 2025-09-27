@@ -1,6 +1,6 @@
 use crate::config::get_config;
 use crate::default_route_handlers::{
-    AuthAndLoginResponse, ChangePassword, LoginDetails, PasswordResetCompleteRequest,
+    ApiResponse, ChangePassword, LoginDetails, PasswordResetCompleteRequest,
     PasswordResetInitiateRequest, ResponseType,
 };
 use crate::utilities::generate_unique_id;
@@ -302,7 +302,7 @@ async fn change_password() {
 
     headers.insert(COOKIE, HeaderValue::from_str(&session_cookie).unwrap());
 
-    let response: AuthAndLoginResponse = client
+    let response: ApiResponse = client
         .patch(url)
         .body(body)
         .headers(headers)
@@ -348,7 +348,7 @@ async fn change_password_and_use_old_creds() {
 
     headers.insert(COOKIE, HeaderValue::from_str(&session_cookie).unwrap());
 
-    let response: AuthAndLoginResponse = client
+    let response: ApiResponse = client
         .patch(url)
         .body(body)
         .headers(headers)
@@ -442,7 +442,7 @@ async fn reset_password() {
 
     let body = serde_json::to_string(&complete_reset_password_request).unwrap();
 
-    let complete_reset_response: AuthAndLoginResponse = client
+    let complete_reset_response: ApiResponse = client
         .patch(&url)
         .body(body)
         .header("Content-Type", "application/json")
@@ -481,7 +481,7 @@ async fn check_max_login_attempts() {
         password,
     };
     let login_json = serde_json::to_string(&login_details).unwrap();
-    let response: AuthAndLoginResponse = client
+    let response: ApiResponse = client
         .post(url)
         .body(login_json)
         .header("Content-Type", "application/json")

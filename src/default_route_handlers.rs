@@ -104,7 +104,7 @@ pub enum ErrorList {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct AuthAndLoginResponse {
+pub struct ApiResponse {
     pub response_type: ResponseType,
     pub message: String,
 }
@@ -118,6 +118,7 @@ pub enum ResponseType {
     PasswordChangeSuccess,
     PasswordResetInitiationSuccess,
     PasswordResetSuccess,
+    UserProfile,
 }
 
 impl From<ResponseType> for String {
@@ -132,6 +133,7 @@ impl From<ResponseType> for String {
                 "PasswordResetInitiationSuccess".to_string()
             }
             ResponseType::PasswordResetSuccess => "PasswordResetSuccess".to_string(),
+            ResponseType::UserProfile => "UserProfile".to_string(),
         }
     }
 }
@@ -140,7 +142,7 @@ impl From<ResponseType> for String {
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         let message = format!("{}", self.0);
-        let error_response = AuthAndLoginResponse {
+        let error_response = ApiResponse {
             message,
             response_type: ResponseType::Error,
         };
@@ -233,7 +235,7 @@ pub struct VerificationDetails {
 pub async fn register(
     State(state): State<Arc<AppState>>,
     Json(registration_details): Json<RegistrationDetails>,
-) -> Result<Json<AuthAndLoginResponse>, AppError> {
+) -> Result<Json<ApiResponse>, AppError> {
     // Validate all the fields
     validate_email(&registration_details.email)?;
     validate_username(&registration_details.username)?;
@@ -257,7 +259,7 @@ pub async fn register(
 
     send_verification_email(&registration_details, state.clone()).await?;
 
-    Ok(Json(AuthAndLoginResponse {
+    Ok(Json(ApiResponse {
         response_type: ResponseType::RegistrationSuccess,
         message: "Registration successful".to_string(),
     }))
@@ -267,7 +269,7 @@ pub async fn google_login(
     State(state): State<Arc<AppState>>,
     request_headers: HeaderMap,
     Form(token): Form<GoogleToken>,
-) -> Result<(HeaderMap, Json<AuthAndLoginResponse>), AppError> {
+) -> Result<(HeaderMap, Json<ApiResponse>), AppError> {
     let mut headers = HeaderMap::new();
 
     let mut valid_cookie = false;
@@ -358,7 +360,7 @@ pub async fn google_login(
 
     Ok((
         headers,
-        Json(AuthAndLoginResponse {
+        Json(ApiResponse {
             message: "Login successful".to_string(),
             response_type: ResponseType::LoginSuccess,
         }),
@@ -368,7 +370,7 @@ pub async fn google_login(
 pub async fn login(
     State(state): State<Arc<AppState>>,
     Json(login_details): Json<LoginDetails>,
-) -> Result<(HeaderMap, Json<AuthAndLoginResponse>), AppError> {
+) -> Result<(HeaderMap, Json<ApiResponse>), AppError> {
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
         .bind(&login_details.email)
         .fetch_optional(&state.db_connection_pool)
@@ -396,7 +398,7 @@ pub async fn login(
         );
         Ok((
             header_map,
-            Json(AuthAndLoginResponse {
+            Json(ApiResponse {
                 response_type: ResponseType::LoginSuccess,
                 message: "Login successful".to_string(),
             }),
@@ -414,7 +416,7 @@ pub async fn login(
 pub async fn verify_email(
     State(state): State<Arc<AppState>>,
     Json(verification_details): Json<VerificationDetails>,
-) -> Result<Json<AuthAndLoginResponse>, AppError> {
+) -> Result<Json<ApiResponse>, AppError> {
     let now = Utc::now().timestamp();
 
     let code_exists = sqlx::query(
@@ -444,7 +446,7 @@ pub async fn verify_email(
     .execute(&state.db_connection_pool)
     .await?;
 
-    Ok(Json(AuthAndLoginResponse {
+    Ok(Json(ApiResponse {
         message: "Email verified successfully".to_string(),
         response_type: ResponseType::EmailVerificationSuccess,
     }))
@@ -454,7 +456,7 @@ pub async fn change_password(
     State(state): State<Arc<AppState>>,
     user: User,
     Json(password_details): Json<ChangePassword>,
-) -> Result<Json<AuthAndLoginResponse>, AppError> {
+) -> Result<Json<ApiResponse>, AppError> {
     if !verify_password(&user.hashed_password, &password_details.old_password) {
         return Err(ErrorList::IncorrectPassword.into());
     }
@@ -472,7 +474,7 @@ pub async fn change_password(
         .execute(&state.db_connection_pool)
         .await?;
 
-    Ok(Json(AuthAndLoginResponse {
+    Ok(Json(ApiResponse {
         message: "Password changed successfully".to_string(),
         response_type: ResponseType::PasswordChangeSuccess,
     }))
@@ -481,7 +483,7 @@ pub async fn change_password(
 pub async fn password_reset_initiate(
     State(state): State<Arc<AppState>>,
     Json(password_reset_request): Json<PasswordResetInitiateRequest>,
-) -> Result<Json<AuthAndLoginResponse>, AppError> {
+) -> Result<Json<ApiResponse>, AppError> {
     // Check if user exists for provided email
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
         .bind(&password_reset_request.0)
@@ -514,7 +516,7 @@ pub async fn password_reset_initiate(
 
     send_email(state, email).await?;
 
-    Ok(Json(AuthAndLoginResponse {
+    Ok(Json(ApiResponse {
         message: "Password reset email sent".to_string(),
         response_type: ResponseType::PasswordResetInitiationSuccess,
     }))
@@ -523,7 +525,7 @@ pub async fn password_reset_initiate(
 pub async fn password_reset_complete(
     State(state): State<Arc<AppState>>,
     Json(password_reset_response): Json<PasswordResetCompleteRequest>,
-) -> Result<Json<AuthAndLoginResponse>, AppError> {
+) -> Result<Json<ApiResponse>, AppError> {
     // Check if passwords match
     if password_reset_response.password != password_reset_response.confirm_password {
         return Err(ErrorList::NonMatchingPasswords.into());
@@ -550,19 +552,24 @@ pub async fn password_reset_complete(
         return Err(ErrorList::InvalidVerificationCode.into());
     }
 
-    Ok(Json(AuthAndLoginResponse {
+    Ok(Json(ApiResponse {
         message: "Password reset complete".to_string(),
         response_type: ResponseType::PasswordResetSuccess,
     }))
 }
 
-pub async fn get_profile(user: User) -> Result<Json<Profile>, AppError> {
-    Ok(Json(Profile::from(user)))
+pub async fn get_profile(user: User) -> Result<Json<ApiResponse>, AppError> {
+    let profile = Profile::from(user);
+
+    Ok(Json(ApiResponse {
+        response_type: ResponseType::UserProfile,
+        message: serde_json::to_string(&profile).expect("Could not convert profile to string"),
+    }))
 }
 
 pub async fn logout(State(state): State<Arc<AppState>>, user: User) -> Result<HeaderMap, AppError> {
-    sqlx::query("DELETE FROM sessions WHERE email=$1")
-        .bind(&user.email)
+    sqlx::query("DELETE FROM sessions WHERE username=$1")
+        .bind(&user.username)
         .execute(&state.db_connection_pool)
         .await?;
 

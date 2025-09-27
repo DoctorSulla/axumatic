@@ -1,5 +1,6 @@
 use crate::AppState;
 use std::sync::Arc;
+use tracing::{Level, event};
 
 use super::ErrorList;
 
@@ -29,7 +30,14 @@ pub async fn is_unique(
     email: &String,
     state: Arc<AppState>,
 ) -> Result<bool, ErrorList> {
-    let username = sqlx::query("SELECT username FROM users WHERE username=?")
+    event!(
+        Level::INFO,
+        "Checking if username of {} or email of {} is registered",
+        &username,
+        &email
+    );
+
+    let username = sqlx::query("SELECT 1 FROM users WHERE username=$1")
         .bind(username)
         .fetch_optional(&state.db_connection_pool)
         .await;
@@ -37,10 +45,14 @@ pub async fn is_unique(
     if let Ok(user) = username
         && user.is_some()
     {
+        event!(
+            Level::INFO,
+            "Attempted registration with duplicate username"
+        );
         return Err(ErrorList::UsernameAlreadyRegistered);
     }
 
-    let email = sqlx::query("SELECT email FROM users WHERE email=?")
+    let email = sqlx::query("SELECT email FROM users WHERE email=$1")
         .bind(email)
         .fetch_optional(&state.db_connection_pool)
         .await;
@@ -48,6 +60,7 @@ pub async fn is_unique(
     if let Ok(email) = email
         && email.is_some()
     {
+        event!(Level::INFO, "Attempted registration with duplicate email");
         return Err(ErrorList::EmailAlreadyRegistered);
     }
     Ok(true)
