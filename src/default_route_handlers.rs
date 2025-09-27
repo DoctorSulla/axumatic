@@ -420,7 +420,7 @@ pub async fn verify_email(
     let now = Utc::now().timestamp();
 
     let code_exists = sqlx::query(
-        "SELECT 1 FROM codes WHERE code_type = 'EmailVerification' AND email = $1 AND code = $2 AND expiry_ts > ?"
+        "SELECT 1 FROM codes WHERE code_type = 'EmailVerification' AND email = $1 AND code = $2 AND expiry_ts > $3"
     )
     .bind(&verification_details.email)
     .bind(&verification_details.code)

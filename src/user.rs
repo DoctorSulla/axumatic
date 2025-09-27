@@ -22,6 +22,7 @@ pub struct Profile {
     pub email: String,
     pub auth_level: String,
     pub identity_provider: String,
+    pub registration_ts: i64,
 }
 
 impl From<User> for Profile {
@@ -31,6 +32,7 @@ impl From<User> for Profile {
             email: value.email,
             auth_level: value.auth_level,
             identity_provider: value.identity_provider,
+            registration_ts: value.registration_ts,
         }
     }
 }
