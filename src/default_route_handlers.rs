@@ -16,7 +16,7 @@ use http::header::{self, HeaderMap, SET_COOKIE};
 use jwt_verifier::JwtVerifierClient;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use thiserror::Error;
 use tracing::{Level, event};
 use validations::*;
@@ -596,9 +596,16 @@ pub async fn health_check() -> http::status::StatusCode {
 }
 
 pub async fn get_nonce() -> Result<Json<ApiResponse>, AppError> {
+    const NONCE_EXPIRATION: i64 = 300;
+
     let mut lock = NONCE_STORE.write().unwrap();
     let id = generate_unique_id(20);
-    lock.insert(id.clone(), Utc::now().timestamp());
+
+    let now = Utc::now().timestamp();
+
+    lock.retain(|_k, v| *v + NONCE_EXPIRATION > now);
+
+    lock.insert(id.clone(), now);
 
     Ok(Json(ApiResponse {
         response_type: ResponseType::Nonce,
