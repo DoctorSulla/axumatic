@@ -1,4 +1,5 @@
 use crate::{
+    NONCE_STORE,
     auth::{IdentityProvider, add_code, create_registration, send_verification_email},
     user::{Profile, User},
 };
@@ -119,6 +120,7 @@ pub enum ResponseType {
     PasswordResetInitiationSuccess,
     PasswordResetSuccess,
     UserProfile,
+    Nonce,
 }
 
 impl From<ResponseType> for String {
@@ -134,6 +136,7 @@ impl From<ResponseType> for String {
             }
             ResponseType::PasswordResetSuccess => "PasswordResetSuccess".to_string(),
             ResponseType::UserProfile => "UserProfile".to_string(),
+            ResponseType::Nonce => "Nonce".to_string(),
         }
     }
 }
@@ -586,4 +589,19 @@ pub async fn logout(State(state): State<Arc<AppState>>, user: User) -> Result<He
         logout_cookie.to_string().parse().unwrap(),
     );
     Ok(headers)
+}
+
+pub async fn health_check() -> http::status::StatusCode {
+    http::status::StatusCode::NO_CONTENT
+}
+
+pub async fn get_nonce() -> Result<Json<ApiResponse>, AppError> {
+    let mut lock = NONCE_STORE.write().unwrap();
+    let id = generate_unique_id(20);
+    lock.insert(id.clone(), Utc::now().timestamp());
+
+    Ok(Json(ApiResponse {
+        response_type: ResponseType::Nonce,
+        message: id,
+    }))
 }

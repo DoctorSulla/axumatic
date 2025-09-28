@@ -35,4 +35,6 @@ pub fn get_open_routes() -> Router<Arc<AppState>> {
             "/account/resetPassword",
             patch(default_route_handlers::password_reset_complete),
         )
+        .route("/healthCheck", get(default_route_handlers::health_check))
+        .route("/nonce", get(default_route_handlers::get_nonce))
 }

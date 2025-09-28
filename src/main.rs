@@ -5,7 +5,11 @@ use config::AppState;
 use middleware::ValidateSessionLayer;
 use routes::*;
 use sqlx::migrate;
-use std::{sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{Arc, LazyLock, RwLock},
+    time::Duration,
+};
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, timeout::TimeoutLayer};
 use tracing::{Level, event, span};
@@ -20,6 +24,9 @@ mod utilities;
 
 #[cfg(test)]
 mod tests;
+
+static NONCE_STORE: LazyLock<Arc<RwLock<HashMap<String, i64>>>> =
+    LazyLock::new(|| Arc::new(RwLock::new(HashMap::new())));
 
 #[tokio::main]
 async fn main() {
