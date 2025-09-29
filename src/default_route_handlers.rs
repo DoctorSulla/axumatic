@@ -4,7 +4,7 @@ use crate::{
     user::{Profile, User},
 };
 use axum::{
-    Form, async_trait,
+    async_trait,
     extract::{FromRequestParts, Json, State},
     http::StatusCode,
     response::IntoResponse,
@@ -16,7 +16,7 @@ use http::header::{self, HeaderMap, SET_COOKIE};
 use jwt_verifier::JwtVerifierClient;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 use thiserror::Error;
 use tracing::{Level, event};
 use validations::*;
@@ -46,8 +46,7 @@ pub struct PasswordResetCompleteRequest {
 
 #[derive(Serialize, Deserialize)]
 pub struct GoogleToken {
-    credential: String,
-    g_csrf_token: String,
+    jwt: String,
 }
 
 // Verification code types
@@ -72,8 +71,6 @@ pub struct AppError(anyhow::Error);
 // Errors specific to our app
 #[derive(Error, Debug)]
 pub enum ErrorList {
-    #[error("CSRF Token Mismatch")]
-    CsrfTokenMismatch,
     #[error("Email must contain an @, be greater than 3 characters and less than 300 characters")]
     InvalidEmail,
     #[error("Password must be between 8 and 100 characters")]
@@ -270,27 +267,14 @@ pub async fn register(
 
 pub async fn google_login(
     State(state): State<Arc<AppState>>,
-    request_headers: HeaderMap,
-    Form(token): Form<GoogleToken>,
+    Json(token): Json<GoogleToken>,
 ) -> Result<(HeaderMap, Json<ApiResponse>), AppError> {
     let mut headers = HeaderMap::new();
 
-    // let mut valid_cookie = false;
-    // if let Some(cookie_header) = request_headers.get("cookie") {
-    //     let cookies = Cookie::split_parse(cookie_header.to_str()?);
-    //     for cookie in cookies.flatten() {
-    //         if cookie.name() == "g_csrf_token" && cookie.value() == token.g_csrf_token {
-    //             valid_cookie = true;
-    //         }
-    //     }
-    // }
-    //
-    // if !valid_cookie {
-    //     event!(Level::WARN, "CSRF error");
-    //     return Err(AppError(ErrorList::CsrfTokenMismatch.into()));
-    // }
+    let jwt = token.jwt;
 
-    let jwt = token.credential;
+    event!(Level::INFO, "Verifying JWT");
+
     let mut client = match JwtVerifierClient::new().await {
         Ok(v) => v,
         Err(_e) => return Err(AppError(ErrorList::UnexpectedJwtError.into())),
@@ -320,14 +304,26 @@ pub async fn google_login(
         None => return Err(AppError(ErrorList::InvalidJwt.into())),
     }
 
+    event!(Level::INFO, "JWT verified successfully");
+
     if let (Some(email), Some(verified)) = (claims.email, claims.email_verified) {
-        if is_email_registered(&email, state.clone()).await? {
-            let user = get_user_by_email(state.clone(), &email).await?;
+        let user = get_user_by_email(state.clone(), &email).await;
+
+        if let Ok(user) = user {
+            event!(
+                Level::INFO,
+                "Email is already registered, checking identity provider"
+            );
             // Check registration type
             if user.identity_provider == "google" {
+                event!(Level::INFO, "Registered with Google, creating session");
                 let session_cookie = create_session(&user, state).await?;
                 headers.insert(SET_COOKIE, session_cookie.to_string().parse()?);
             } else {
+                event!(
+                    Level::INFO,
+                    "Registered with another provider, returning an error"
+                );
                 return Err(AppError(
                     ErrorList::EmailRegisteredWithAnotherProvider.into(),
                 ));

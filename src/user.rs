@@ -38,7 +38,7 @@ impl From<User> for Profile {
 }
 
 pub async fn get_user_by_email(state: Arc<AppState>, email: &str) -> Result<User, anyhow::Error> {
-    let user = sqlx::query_as::<_, User>("select * from users where username=$1")
+    let user = sqlx::query_as::<_, User>("select * from users where email=$1")
         .bind(email)
         .fetch_optional(&state.db_connection_pool)
         .await?;
