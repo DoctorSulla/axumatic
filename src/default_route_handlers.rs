@@ -275,20 +275,20 @@ pub async fn google_login(
 ) -> Result<(HeaderMap, Json<ApiResponse>), AppError> {
     let mut headers = HeaderMap::new();
 
-    let mut valid_cookie = false;
-    if let Some(cookie_header) = request_headers.get("cookie") {
-        let cookies = Cookie::split_parse(cookie_header.to_str()?);
-        for cookie in cookies.flatten() {
-            if cookie.name() == "g_csrf_token" && cookie.value() == token.g_csrf_token {
-                valid_cookie = true;
-            }
-        }
-    }
-
-    if !valid_cookie {
-        event!(Level::WARN, "CSRF error");
-        return Err(AppError(ErrorList::CsrfTokenMismatch.into()));
-    }
+    // let mut valid_cookie = false;
+    // if let Some(cookie_header) = request_headers.get("cookie") {
+    //     let cookies = Cookie::split_parse(cookie_header.to_str()?);
+    //     for cookie in cookies.flatten() {
+    //         if cookie.name() == "g_csrf_token" && cookie.value() == token.g_csrf_token {
+    //             valid_cookie = true;
+    //         }
+    //     }
+    // }
+    //
+    // if !valid_cookie {
+    //     event!(Level::WARN, "CSRF error");
+    //     return Err(AppError(ErrorList::CsrfTokenMismatch.into()));
+    // }
 
     let jwt = token.credential;
     let mut client = match JwtVerifierClient::new().await {
@@ -307,6 +307,18 @@ pub async fn google_login(
         Ok(claims) => claims,
         Err(_e) => return Err(AppError(ErrorList::InvalidJwt.into())),
     };
+
+    match claims.nonce {
+        Some(v) => {
+            let mut lock = NONCE_STORE.write().unwrap();
+            if lock.get(&v).is_some() {
+                lock.remove(&v);
+            } else {
+                return Err(AppError(ErrorList::InvalidJwt.into()));
+            }
+        }
+        None => return Err(AppError(ErrorList::InvalidJwt.into())),
+    }
 
     if let (Some(email), Some(verified)) = (claims.email, claims.email_verified) {
         if is_email_registered(&email, state.clone()).await? {
