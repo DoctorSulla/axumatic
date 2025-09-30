@@ -99,6 +99,8 @@ pub enum ErrorList {
     InvalidJwt,
     #[error("Email is already registered with another identity provider")]
     EmailRegisteredWithAnotherProvider,
+    #[error("User uses and Identity Provider rather than a password to authenticate")]
+    UserDoesNotUsePassword,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -167,6 +169,7 @@ pub struct RegistrationDetails {
     pub email: String,
     pub password: String,
     pub confirm_password: String,
+    pub sub: Option<String>,
 }
 
 // Used to extract the user from object from the username header
@@ -334,6 +337,7 @@ pub async fn google_login(
                 email,
                 password: String::new(),
                 confirm_password: String::new(),
+                sub: Some(claims.sub),
             };
             if verified {
                 //Create new verified reg
@@ -401,7 +405,13 @@ pub async fn login(
         return Err(ErrorList::TooManyLoginAttempts.into());
     }
     let mut header_map = HeaderMap::new();
-    if verify_password(&user.hashed_password, &login_details.password) {
+    if verify_password(
+        &user
+            .hashed_password
+            .as_ref()
+            .expect("User missing password"),
+        &login_details.password,
+    ) {
         let session_cookie = create_session(&user, state).await?;
         header_map.insert(
             header::SET_COOKIE,
@@ -468,7 +478,16 @@ pub async fn change_password(
     user: User,
     Json(password_details): Json<ChangePassword>,
 ) -> Result<Json<ApiResponse>, AppError> {
-    if !verify_password(&user.hashed_password, &password_details.old_password) {
+    if user.identity_provider != *"default" {
+        return Err(ErrorList::UserDoesNotUsePassword.into());
+    }
+    if !verify_password(
+        &user
+            .hashed_password
+            .as_ref()
+            .expect("User missing password"),
+        &password_details.old_password,
+    ) {
         return Err(ErrorList::IncorrectPassword.into());
     }
     validate_password(&password_details.password)?;

@@ -9,7 +9,7 @@ use std::sync::Arc;
 pub struct User {
     pub username: String,
     pub email: String,
-    pub hashed_password: String,
+    pub hashed_password: Option<String>,
     pub auth_level: String,
     pub login_attempts: i32,
     pub registration_ts: i64,

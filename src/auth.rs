@@ -97,17 +97,27 @@ pub async fn create_registration(
         registration_details.username
     );
 
-    // Create a registration
-    sqlx::query(
-        "INSERT INTO USERS(email,username,hashed_password,registration_ts,identity_provider) values($1,$2,$3,$4,$5)",
-    )
+    match identity_provider {
+        IdentityProvider::Google => sqlx::query(
+            "INSERT INTO USERS(email,username,registration_ts,identity_provider,sub) values($1,$2,$3,$4,$5)"
+        )
+    .bind(&registration_details.email)
+    .bind(&registration_details.username)
+    .bind(Utc::now().timestamp())
+    .bind(String::from(identity_provider))
+    .bind(registration_details.sub.as_ref().expect("Sub missing for Google registration"))
+    .execute(&state.db_connection_pool)
+    .await?,
+        IdentityProvider::Default => sqlx::query(
+            "INSERT INTO USERS(email,username,hashed_password,registration_ts,identity_provider) values($1,$2,$3,$4,$5)",
+        )
     .bind(&registration_details.email)
     .bind(&registration_details.username)
     .bind(hash_password(registration_details.password.as_str()))
     .bind(Utc::now().timestamp())
     .bind(String::from(identity_provider))
-    .execute(&state.db_connection_pool)
-    .await?;
+    .execute(&state.db_connection_pool).await?
+    };
     Ok(())
 }
 

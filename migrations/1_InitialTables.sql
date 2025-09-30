@@ -6,6 +6,7 @@
                 auth_level VARCHAR(30) DEFAULT 'unverified',
                 registration_ts BIGINT,
                 identity_provider VARCHAR(30),
+                sub VARCHAR(256),
                 PRIMARY KEY(email,username)
         );
 

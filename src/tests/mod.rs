@@ -81,6 +81,7 @@ async fn create_valid_reg(port: u16) -> (String, String, String, Response) {
         email: email.clone(),
         password: password.clone(),
         confirm_password: password.clone(),
+        sub: None,
     };
     let registration_request = serde_json::to_string(&registration_request).unwrap();
 
@@ -147,6 +148,7 @@ async fn register_username_too_short() {
         email: "john@doe.gmail.com".to_string(),
         password: "TestPassword".to_string(),
         confirm_password: "TestPassword".to_string(),
+        sub: None,
     };
     let registration_request = serde_json::to_string(&registration_request).unwrap();
 
@@ -170,6 +172,7 @@ async fn register_username_too_long() {
         email: "john@doe.gmail.com".to_string(),
         password: "TestPassword".to_string(),
         confirm_password: "TestPassword".to_string(),
+        sub: None,
     };
     let registration_request = serde_json::to_string(&registration_request).unwrap();
 
@@ -193,6 +196,7 @@ async fn register_invalid_email() {
         email: "johndoe.gmail.com".to_string(),
         password: "TestPassword".to_string(),
         confirm_password: "TestPassword".to_string(),
+        sub: None,
     };
     let registration_request = serde_json::to_string(&registration_request).unwrap();
 
@@ -216,6 +220,7 @@ async fn register_non_matching_passwords() {
         email: "john@doe.gmail.com".to_string(),
         password: "TestPasswor".to_string(),
         confirm_password: "TestPassword".to_string(),
+        sub: None,
     };
     let registration_request = serde_json::to_string(&registration_request).unwrap();
 
@@ -239,6 +244,7 @@ async fn register_password_too_short() {
         email: "john@doe.gmail.com".to_string(),
         password: "TestPas".to_string(),
         confirm_password: "TestPas".to_string(),
+        sub: None,
     };
     let registration_request = serde_json::to_string(&registration_request).unwrap();
 
@@ -262,6 +268,7 @@ async fn register_password_too_long() {
         email: "john@doe.gmail.com".to_string(),
         password: "aabcdefghijklmnopqrstuvwxyabcdefghijklmnopqrstuvwxyabcdefghijklmnopqrstuvwxybcdefghijklmnopqrstuvwxya".to_string(),
         confirm_password: "aabcdefghijklmnopqrstuvwxyabcdefghijklmnopqrstuvwxyabcdefghijklmnopqrstuvwxybcdefghijklmnopqrstuvwxya".to_string(),
+        sub: None,
     };
     let registration_request = serde_json::to_string(&registration_request).unwrap();
 
