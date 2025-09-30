@@ -405,8 +405,7 @@ pub async fn login(
     }
     let mut header_map = HeaderMap::new();
     if verify_password(
-        &user
-            .hashed_password
+        user.hashed_password
             .as_ref()
             .expect("User missing password"),
         &login_details.password,
@@ -478,8 +477,7 @@ pub async fn change_password(
         return Err(ErrorList::UserDoesNotUsePassword.into());
     }
     if !verify_password(
-        &user
-            .hashed_password
+        user.hashed_password
             .as_ref()
             .expect("User missing password"),
         &password_details.old_password,
