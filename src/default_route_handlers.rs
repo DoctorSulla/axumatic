@@ -297,7 +297,7 @@ pub async fn google_login(
 
     match claims.nonce {
         Some(v) => {
-            let mut lock = NONCE_STORE.write().unwrap();
+            let mut lock = NONCE_STORE.write().expect("Couldn't get lock");
             if lock.get(&v).is_some() {
                 lock.remove(&v);
             } else {
@@ -389,8 +389,7 @@ pub async fn login(
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
         .bind(&login_details.email)
         .fetch_optional(&state.db_connection_pool)
-        .await
-        .unwrap();
+        .await?;
     let user = match user {
         Some(i) => i,
         None => return Err(ErrorList::IncorrectUsername.into()),
@@ -413,10 +412,7 @@ pub async fn login(
         &login_details.password,
     ) {
         let session_cookie = create_session(&user, state).await?;
-        header_map.insert(
-            header::SET_COOKIE,
-            session_cookie.to_string().parse().unwrap(),
-        );
+        header_map.insert(header::SET_COOKIE, session_cookie.to_string().parse()?);
         Ok((
             header_map,
             Json(ApiResponse {
@@ -604,17 +600,14 @@ pub async fn logout(State(state): State<Arc<AppState>>, user: User) -> Result<He
         .await?;
 
     let logout_cookie = Cookie::build(("session-key", ""))
-        .max_age(Duration::days(-1000))
+        .max_age(Duration::days(-state.config.server.session_length_in_days))
         .path("/")
         .secure(true)
         .http_only(true)
         .build();
 
     let mut headers = HeaderMap::new();
-    headers.insert(
-        header::SET_COOKIE,
-        logout_cookie.to_string().parse().unwrap(),
-    );
+    headers.insert(header::SET_COOKIE, logout_cookie.to_string().parse()?);
     Ok(headers)
 }
 
@@ -625,7 +618,7 @@ pub async fn health_check() -> http::status::StatusCode {
 pub async fn get_nonce() -> Result<Json<ApiResponse>, AppError> {
     const NONCE_EXPIRATION: i64 = 300;
 
-    let mut lock = NONCE_STORE.write().unwrap();
+    let mut lock = NONCE_STORE.write().expect("Couldn't acquire lock");
     let id = generate_unique_id(20);
 
     let now = Utc::now().timestamp();

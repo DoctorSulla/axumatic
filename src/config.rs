@@ -65,6 +65,7 @@ pub struct ServerConfig {
     pub port: u16,
     pub request_timeout: u64,
     pub max_unsuccessful_login_attempts: i32,
+    pub session_length_in_days: i64,
 }
 
 #[derive(Deserialize, Clone)]

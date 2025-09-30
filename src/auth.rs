@@ -67,13 +67,14 @@ pub async fn validate_cookie(
 pub async fn create_session(user: &User, state: Arc<AppState>) -> Result<Cookie<'_>, AppError> {
     let session_key = generate_unique_id(100);
     let session_cookie = Cookie::build(("session-key", session_key.clone()))
-        .max_age(Duration::days(1000))
+        .max_age(Duration::days(state.config.server.session_length_in_days))
         .path("/")
         .secure(true)
         .http_only(true)
         .build();
 
-    let expiry = Utc::now().timestamp() + (1000 * 24 * 60 * 60);
+    let expiry =
+        Utc::now().timestamp() + (state.config.server.session_length_in_days * 24 * 60 * 60);
 
     sqlx::query("INSERT INTO sessions(session_key,username, expiry) values($1,$2,$3)")
         .bind(&session_key)

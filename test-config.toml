@@ -13,3 +13,4 @@ send_emails = false
 request_timeout = 5
 port = 3000
 max_unsuccessful_login_attempts = 10
+session_length_in_days = 180
