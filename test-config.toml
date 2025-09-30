@@ -14,3 +14,4 @@ request_timeout = 5
 port = 3000
 max_unsuccessful_login_attempts = 10
 session_length_in_days = 180
+google_client_id = "988343938519-vle7kps2l5f6cdnjluibda25o66h2jpn.apps.googleusercontent.com"

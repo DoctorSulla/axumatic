@@ -66,6 +66,7 @@ pub struct ServerConfig {
     pub request_timeout: u64,
     pub max_unsuccessful_login_attempts: i32,
     pub session_length_in_days: i64,
+    pub google_client_id: String,
 }
 
 #[derive(Deserialize, Clone)]
@@ -90,8 +91,8 @@ impl TryFrom<String> for AuthLevel {
 impl From<AuthLevel> for String {
     fn from(value: AuthLevel) -> Self {
         match value {
-            AuthLevel::Unverified => "admin".to_string(),
-            AuthLevel::Admin => "unverified".to_string(),
+            AuthLevel::Unverified => "unverified".to_string(),
+            AuthLevel::Admin => "admin".to_string(),
             AuthLevel::Verified => "verified".to_string(),
         }
     }

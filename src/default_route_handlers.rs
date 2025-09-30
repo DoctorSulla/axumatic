@@ -287,7 +287,7 @@ pub async fn google_login(
         &mut client,
         &jwt,
         true,
-        "988343938519-vle7kps2l5f6cdnjluibda25o66h2jpn.apps.googleusercontent.com",
+        &state.config.server.google_client_id,
     )
     .await
     {
@@ -410,7 +410,13 @@ pub async fn login(
             .expect("User missing password"),
         &login_details.password,
     ) {
-        let session_cookie = create_session(&user, state).await?;
+        let session_cookie = create_session(&user, state.clone()).await?;
+
+        sqlx::query("UPDATE users SET login_attempts=0 WHERE email=$1")
+            .bind(&user.email)
+            .execute(&state.db_connection_pool)
+            .await?;
+
         header_map.insert(header::SET_COOKIE, session_cookie.to_string().parse()?);
         Ok((
             header_map,
