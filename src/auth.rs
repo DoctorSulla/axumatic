@@ -9,6 +9,9 @@ use http::HeaderMap;
 use std::sync::Arc;
 use tracing::{Level, event};
 
+const HOURS_IN_DAY: u32 = 24;
+const SECONDS_IN_HOUR: u32 = 3600;
+
 pub enum IdentityProvider {
     Google,
     Default,
@@ -173,7 +176,7 @@ pub async fn add_code(
     .bind(email)
     .bind(code)
     .bind(Utc::now().timestamp())
-    .bind(Utc::now().timestamp() + 24 * 3600)
+    .bind(Utc::now().timestamp() + HOURS_IN_DAY as i64 * SECONDS_IN_HOUR as i64)
     .execute(&state.db_connection_pool)
     .await?;
     Ok(())
