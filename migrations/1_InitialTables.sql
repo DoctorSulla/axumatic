@@ -26,3 +26,8 @@
             expiry_ts BIGINT,
             used BOOLEAN default false
         );
+
+        CREATE INDEX IF NOT EXISTS user_email ON users(email);
+        CREATE INDEX IF NOT EXISTS user_username ON users(username);
+        CREATE INDEX IF NOT EXISTS sessions_username ON sessions(username);
+        CREATE INDEX IF NOT EXISTS codes_email ON codes(email);
