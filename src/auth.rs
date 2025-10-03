@@ -76,8 +76,10 @@ pub async fn create_session(user: &User, state: Arc<AppState>) -> Result<Cookie<
         .http_only(true)
         .build();
 
-    let expiry =
-        Utc::now().timestamp() + (state.config.server.session_length_in_days * 24 * 60 * 60);
+    let expiry = Utc::now().timestamp()
+        + (state.config.server.session_length_in_days
+            * HOURS_IN_DAY as i64
+            * SECONDS_IN_HOUR as i64);
 
     sqlx::query("INSERT INTO sessions(session_key,username, expiry) values($1,$2,$3)")
         .bind(&session_key)
