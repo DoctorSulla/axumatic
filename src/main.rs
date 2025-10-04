@@ -5,15 +5,16 @@ use config::AppState;
 use middleware::ValidateSessionLayer;
 use routes::*;
 use sqlx::migrate;
+use std::time::Duration;
 use std::{
     collections::HashMap,
     sync::{Arc, LazyLock, RwLock},
-    time::Duration,
 };
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, timeout::TimeoutLayer};
 use tracing::{Level, event, span};
 
+use crate::utilities::start_session_cleaner;
 mod auth;
 mod config;
 mod default_route_handlers;
@@ -38,6 +39,8 @@ async fn main() {
     let _ = span.enter();
 
     let app_state = get_app_state().await;
+
+    start_session_cleaner(app_state.clone()).await;
 
     event!(Level::INFO, "Creating tables");
 

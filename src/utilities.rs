@@ -11,6 +11,8 @@ use std::sync::Arc;
 
 use crate::AppState;
 
+use chrono::Utc;
+
 #[derive(Debug)]
 pub struct Email<'a> {
     pub from: &'a str,
@@ -68,4 +70,21 @@ pub fn generate_unique_id(length: u8) -> String {
         id.push(character_set[rng.gen_range(0..character_set.len())]);
     }
     id
+}
+
+pub async fn start_session_cleaner(state: Arc<AppState>) {
+    tokio::spawn(async move {
+        loop {
+            let now = Utc::now().timestamp();
+            let delete = sqlx::query("DELETE FROM sessions WHERE $1 > expiry")
+                .bind(now)
+                .execute(&state.db_connection_pool)
+                .await;
+            match delete {
+                Ok(_v) => event!(Level::INFO, "Expired sessions deleted"),
+                Err(e) => event!(Level::WARN, "Failed to delete sessions due to {}", e),
+            };
+            tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
+        }
+    });
 }
