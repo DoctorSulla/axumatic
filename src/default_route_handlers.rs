@@ -1,6 +1,9 @@
 use crate::{
     NONCE_STORE,
-    auth::{IdentityProvider, add_code, create_registration, send_verification_email},
+    auth::{
+        IdentityProvider, add_code, create_registration, has_valid_email_code,
+        send_verification_email,
+    },
     user::{Profile, User, get_user_by_sub, get_user_by_username, update_google_user_email},
 };
 use axum::{
@@ -101,6 +104,12 @@ pub enum ErrorList {
     EmailRegisteredWithAnotherProvider,
     #[error("User uses and Identity Provider rather than a password to authenticate")]
     UserDoesNotUsePassword,
+    #[error("Your email is already verified")]
+    EmailAlreadyVerified,
+    #[error(
+        "You must wait for your previous email verification code to expire before you can send another"
+    )]
+    PreviousCodeNotExpired,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -120,6 +129,7 @@ pub enum ResponseType {
     PasswordResetSuccess,
     UserProfile,
     Nonce,
+    ResendVerificationEmailSuccess,
 }
 
 impl From<ResponseType> for String {
@@ -136,6 +146,9 @@ impl From<ResponseType> for String {
             ResponseType::PasswordResetSuccess => "PasswordResetSuccess".to_string(),
             ResponseType::UserProfile => "UserProfile".to_string(),
             ResponseType::Nonce => "Nonce".to_string(),
+            ResponseType::ResendVerificationEmailSuccess => {
+                "ResendVerificationEmailSuccess".to_string()
+            }
         }
     }
 }
@@ -253,14 +266,14 @@ pub async fn register(
         return Err(ErrorList::NonMatchingPasswords.into());
     }
 
-    create_registration(
+    let user = create_registration(
         &registration_details,
         state.clone(),
         IdentityProvider::Default,
     )
     .await?;
 
-    send_verification_email(&registration_details, state.clone()).await?;
+    send_verification_email(&user, state.clone()).await?;
 
     Ok(Json(ApiResponse {
         response_type: ResponseType::RegistrationSuccess,
@@ -386,7 +399,7 @@ pub async fn google_login(
                 .await?;
 
                 let user = get_user_by_email(state.clone(), &registration_details.email).await?;
-                send_verification_email(&registration_details, state.clone()).await?;
+                send_verification_email(&user, state.clone()).await?;
                 let session_cookie = create_session(&user, state.clone()).await?;
                 headers.insert(SET_COOKIE, session_cookie.to_string().parse()?);
             }
@@ -633,6 +646,23 @@ pub async fn logout(State(state): State<Arc<AppState>>, user: User) -> Result<He
     let mut headers = HeaderMap::new();
     headers.insert(header::SET_COOKIE, logout_cookie.to_string().parse()?);
     Ok(headers)
+}
+
+pub async fn resend_verification_email(
+    State(state): State<Arc<AppState>>,
+    user: User,
+) -> Result<Json<ApiResponse>, AppError> {
+    if user.email_verified {
+        Err(AppError(ErrorList::EmailAlreadyVerified.into()))
+    } else if has_valid_email_code(state.clone(), &user).await.is_some() {
+        return Err(AppError(ErrorList::PreviousCodeNotExpired.into()));
+    } else {
+        send_verification_email(&user, state.clone()).await?;
+        return Ok(Json(ApiResponse {
+            response_type: ResponseType::ResendVerificationEmailSuccess,
+            message: "Verification email sent successfully".to_string(),
+        }));
+    }
 }
 
 pub async fn health_check() -> http::status::StatusCode {

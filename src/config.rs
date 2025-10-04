@@ -89,7 +89,7 @@ impl TryFrom<String> for AuthLevel {
 impl From<AuthLevel> for String {
     fn from(value: AuthLevel) -> Self {
         match value {
-            AuthLevel::User => "User".to_string(),
+            AuthLevel::User => "user".to_string(),
             AuthLevel::Admin => "admin".to_string(),
         }
     }

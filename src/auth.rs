@@ -1,4 +1,5 @@
 use crate::AppState;
+use crate::config::AuthLevel;
 use crate::default_route_handlers::{AppError, CodeType, ErrorList, RegistrationDetails, Username};
 use crate::user::User;
 use crate::utilities::{Email, generate_unique_id, hash_password, send_email};
@@ -6,12 +7,14 @@ use chrono::Utc;
 use cookie::Cookie;
 use cookie::time::Duration;
 use http::HeaderMap;
+use sqlx::postgres::PgRow;
 use std::sync::Arc;
 use tracing::{Level, event};
 
 const HOURS_IN_DAY: u32 = 24;
 const SECONDS_IN_HOUR: u32 = 3600;
 
+#[derive(Clone)]
 pub enum IdentityProvider {
     Google,
     Default,
@@ -95,7 +98,7 @@ pub async fn create_registration(
     registration_details: &RegistrationDetails,
     state: Arc<AppState>,
     identity_provider: IdentityProvider,
-) -> Result<(), AppError> {
+) -> Result<User, AppError> {
     event!(
         Level::INFO,
         "Attempting to create registration for email {} and username {}",
@@ -103,14 +106,17 @@ pub async fn create_registration(
         registration_details.username
     );
 
+    let hashed_password = hash_password(&registration_details.password);
+    let registration_ts = Utc::now().timestamp();
+
     match identity_provider {
         IdentityProvider::Google => sqlx::query(
             "INSERT INTO USERS(email,username,registration_ts,identity_provider,sub) values($1,$2,$3,$4,$5)"
         )
     .bind(&registration_details.email)
     .bind(&registration_details.username)
-    .bind(Utc::now().timestamp())
-    .bind(String::from(identity_provider))
+    .bind(registration_ts)
+    .bind(String::from(identity_provider.clone()))
     .bind(registration_details.sub.as_ref().expect("Sub missing for Google registration"))
     .execute(&state.db_connection_pool)
     .await?,
@@ -119,29 +125,32 @@ pub async fn create_registration(
         )
     .bind(&registration_details.email)
     .bind(&registration_details.username)
-    .bind(hash_password(registration_details.password.as_str()))
-    .bind(Utc::now().timestamp())
-    .bind(String::from(identity_provider))
+    .bind(&hashed_password)
+    .bind(registration_ts)
+    .bind(String::from(identity_provider.clone()))
     .execute(&state.db_connection_pool).await?
     };
-    Ok(())
+    Ok(User {
+        username: registration_details.username.clone(),
+        email: registration_details.email.clone(),
+        email_verified: false,
+        hashed_password: None,
+        auth_level: String::from(AuthLevel::User),
+        login_attempts: 0,
+        registration_ts,
+        identity_provider: String::from(identity_provider),
+    })
 }
 
-pub async fn send_verification_email(
-    registration_details: &RegistrationDetails,
-    state: Arc<AppState>,
-) -> Result<(), AppError> {
+pub async fn send_verification_email(user: &User, state: Arc<AppState>) -> Result<(), AppError> {
     event!(
         Level::INFO,
         "Attempting to send a verification email to {}",
-        registration_details.email
+        user.email
     );
 
     // Send an email
-    let to = format!(
-        "{} <{}>",
-        registration_details.username, registration_details.email
-    );
+    let to = format!("{} <{}>", user.username, user.email);
 
     let code = generate_unique_id(8);
 
@@ -150,13 +159,13 @@ pub async fn send_verification_email(
         from: "registration@tld.com",
         subject: String::from("Verify your email"),
         body: format!(
-            "<p>Thank you for registering.</p> <p>Please verify for your email using the following code {code}.</p>"
+            "<p>Thank you for registering.</p> <p>Please verify for your email using the following code {code}. Your code is valid for 1 hour.</p>"
         ),
         reply_to: None,
     };
     add_code(
         state.clone(),
-        &registration_details.email,
+        &user.email,
         &code,
         CodeType::EmailVerification,
     )
@@ -178,8 +187,26 @@ pub async fn add_code(
     .bind(email)
     .bind(code)
     .bind(Utc::now().timestamp())
-    .bind(Utc::now().timestamp() + HOURS_IN_DAY as i64 * SECONDS_IN_HOUR as i64)
+    .bind(Utc::now().timestamp() + SECONDS_IN_HOUR as i64)
     .execute(&state.db_connection_pool)
     .await?;
     Ok(())
+}
+
+pub async fn has_valid_email_code(state: Arc<AppState>, user: &User) -> Option<PgRow> {
+    let now = Utc::now().timestamp();
+
+    let code_exists = sqlx::query(
+        "SELECT 1 FROM codes WHERE code_type = 'EmailVerification' AND email = $1 AND expiry_ts > $2"
+    )
+    .bind(&user.email)
+    .bind(now)
+    .fetch_optional(&state.db_connection_pool)
+    .await;
+
+    if let Ok(row) = code_exists {
+        return row;
+    }
+
+    None
 }
