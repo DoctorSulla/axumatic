@@ -1,9 +1,10 @@
         CREATE TABLE IF NOT EXISTS users(
                 email VARCHAR(100) unique,
+                email_verified boolean DEFAULT false,
                 username VARCHAR(50) unique,
                 hashed_password VARCHAR(100),
                 login_attempts INTEGER DEFAULT 0,
-                auth_level VARCHAR(30) DEFAULT 'unverified',
+                auth_level VARCHAR(30) DEFAULT 'user',
                 registration_ts BIGINT,
                 identity_provider VARCHAR(30),
                 sub VARCHAR(256),

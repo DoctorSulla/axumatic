@@ -71,8 +71,7 @@ pub struct ServerConfig {
 
 #[derive(Deserialize, Clone)]
 pub enum AuthLevel {
-    Unverified,
-    Verified,
+    User,
     Admin,
 }
 
@@ -80,8 +79,7 @@ impl TryFrom<String> for AuthLevel {
     type Error = String;
     fn try_from(value: String) -> Result<Self, Self::Error> {
         match value.to_lowercase().as_str() {
-            "unverified" => Ok(AuthLevel::Unverified),
-            "verified" => Ok(AuthLevel::Verified),
+            "user" => Ok(AuthLevel::User),
             "admin" => Ok(AuthLevel::Admin),
             _ => Err("Invalid auth level".to_string()),
         }
@@ -91,9 +89,8 @@ impl TryFrom<String> for AuthLevel {
 impl From<AuthLevel> for String {
     fn from(value: AuthLevel) -> Self {
         match value {
-            AuthLevel::Unverified => "unverified".to_string(),
+            AuthLevel::User => "User".to_string(),
             AuthLevel::Admin => "admin".to_string(),
-            AuthLevel::Verified => "verified".to_string(),
         }
     }
 }

@@ -1,7 +1,7 @@
 use crate::{
     NONCE_STORE,
     auth::{IdentityProvider, add_code, create_registration, send_verification_email},
-    user::{Profile, User},
+    user::{Profile, User, get_user_by_sub, get_user_by_username, update_google_user_email},
 };
 use axum::{
     async_trait,
@@ -310,13 +310,27 @@ pub async fn google_login(
     event!(Level::INFO, "JWT verified successfully");
 
     if let (Some(email), Some(verified)) = (claims.email, claims.email_verified) {
-        let user = get_user_by_email(state.clone(), &email).await;
+        let user = get_user_by_sub(state.clone(), &claims.sub).await;
 
-        if let Ok(user) = user {
+        if let Ok(mut user) = user {
             event!(
                 Level::INFO,
-                "Email is already registered, checking identity provider"
+                "User is registered, checking email hasn't changed"
             );
+
+            if email != user.email {
+                // Check if new email is already registered
+                if get_user_by_email(state.clone(), &user.email).await.is_ok() {
+                    return Err(AppError(
+                        ErrorList::EmailRegisteredWithAnotherProvider.into(),
+                    ));
+                } else {
+                    // Update the user's email and email verification status
+                    update_google_user_email(state.clone(), &email, verified, &claims.sub).await?;
+                    user.email = email;
+                    user.email_verified = verified;
+                }
+            }
             // Check registration type
             if user.identity_provider == "google" {
                 event!(Level::INFO, "Registered with Google, creating session");
@@ -332,15 +346,21 @@ pub async fn google_login(
                 ));
             }
         } else {
+            let (proposed_username, _prefix) =
+                email.split_once('@').expect("Email does not contain an @");
+            let username = match get_user_by_username(state.clone(), proposed_username).await {
+                Ok(_v) => generate_unique_id(20),
+                Err(_e) => proposed_username.to_string(),
+            };
             let registration_details = RegistrationDetails {
-                username: String::new(),
+                username,
                 email,
                 password: String::new(),
                 confirm_password: String::new(),
                 sub: Some(claims.sub),
             };
             if verified {
-                //Create new verified reg
+                //Create new reg with email verified
                 create_registration(
                     &registration_details,
                     state.clone(),
@@ -348,7 +368,7 @@ pub async fn google_login(
                 )
                 .await?;
 
-                sqlx::query("UPDATE users SET auth_level = 'verified' WHERE email = $1")
+                sqlx::query("UPDATE users SET email_verified = true WHERE email = $1")
                     .bind(&registration_details.email)
                     .execute(&state.db_connection_pool)
                     .await?;
@@ -454,7 +474,7 @@ pub async fn verify_email(
         return Err(ErrorList::InvalidVerificationCode.into());
     }
 
-    sqlx::query("UPDATE users SET auth_level = 'verified' WHERE email = $1")
+    sqlx::query("UPDATE users SET email_verified = true WHERE email = $1")
         .bind(&verification_details.email)
         .execute(&state.db_connection_pool)
         .await?;
