@@ -17,8 +17,16 @@ For email I am planning on using Amazon SES but as it is just an SMTP server, an
 # Users and Auth
 Users are stored in the database with a hashed and salted password. I have also written but not tested most of the code required to integrate with Google as an identity provider. Sessions are created at login, stored in a separate table and managed with a session cookie which is authenticated by a middleware layer.
 
+
 # Environment Variables
 The following environment variables are used:
 - AXUMATIC_PG_PASSWORD - This is where the password for PostgreSql is stored
 - AXUMATIC_SMTP_PASSWORD - This is where the SMTP password is stored
 - AXUMATIC_ENVIRONMENT - This can be PROD or TEST and will determine whether to use config.toml or test-config.toml
+
+
+# Known issues
+- Error handling is a bit consistent and reflective of the fact I was learning more about Rust error handling as I was going.
+- Some of the errors almost certainly leak out more of the internal implementation than they should.
+- Structure of the project could be better. Some stuff is in the wrong place and Default Route Handlers is getting a bit long.
+- There is a lot of logic which is not covered by tests. There's a lot more cases to cover doing auth than I originally thought.
