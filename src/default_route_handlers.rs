@@ -194,19 +194,10 @@ impl FromRequestParts<Arc<AppState>> for User {
         parts: &mut http::request::Parts,
         state: &Arc<AppState>,
     ) -> Result<Self, Self::Rejection> {
-        let username = match parts.headers.get("username") {
-            Some(username) => username,
-            None => return Err((StatusCode::INTERNAL_SERVER_ERROR, "Expected header missing")),
-        };
-        let username = match username.to_str() {
-            Ok(i) => i,
-            Err(_e) => {
-                return Err((
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Unexpected error with header value",
-                ));
-            }
-        };
+        let username = parts.headers.get("username")
+            .ok_or((StatusCode::INTERNAL_SERVER_ERROR, "Expected header missing"))?;
+        let username = username.to_str()
+            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Unexpected error with header value"))?;
         let user = sqlx::query_as::<_, User>("select * from users where username=$1")
             .bind(username)
             .fetch_optional(&state.db_connection_pool)
@@ -291,33 +282,25 @@ pub async fn google_login(
 
     event!(Level::INFO, "Verifying JWT");
 
-    let mut client = match JwtVerifierClient::new().await {
-        Ok(v) => v,
-        Err(_e) => return Err(AppError(ErrorList::UnexpectedJwtError.into())),
-    };
+    let mut client = JwtVerifierClient::new()
+        .await
+        .map_err(|_| AppError(ErrorList::UnexpectedJwtError.into()))?;
 
-    let claims = match JwtVerifierClient::verify(
+    let claims = JwtVerifierClient::verify(
         &mut client,
         &jwt,
         true,
         &state.config.server.google_client_id,
     )
     .await
-    {
-        Ok(claims) => claims,
-        Err(_e) => return Err(AppError(ErrorList::InvalidJwt.into())),
-    };
+    .map_err(|_| AppError(ErrorList::InvalidJwt.into()))?;
 
-    match claims.nonce {
-        Some(v) => {
-            let mut lock = NONCE_STORE.write().expect("Couldn't get lock");
-            if lock.get(&v).is_some() {
-                lock.remove(&v);
-            } else {
-                return Err(AppError(ErrorList::InvalidJwt.into()));
-            }
+    let nonce = claims.nonce.ok_or(ErrorList::InvalidJwt)?;
+    {
+        let mut lock = NONCE_STORE.write().expect("Couldn't get lock");
+        if lock.remove(&nonce).is_none() {
+            return Err(AppError(ErrorList::InvalidJwt.into()));
         }
-        None => return Err(AppError(ErrorList::InvalidJwt.into())),
     }
 
     event!(Level::INFO, "JWT verified successfully");
@@ -423,10 +406,7 @@ pub async fn login(
         .bind(&login_details.email)
         .fetch_optional(&state.db_connection_pool)
         .await?;
-    let user = match user {
-        Some(i) => i,
-        None => return Err(ErrorList::IncorrectUsername.into()),
-    };
+    let user = user.ok_or(ErrorList::IncorrectUsername)?;
 
     if user.identity_provider != "default" {
         return Err(ErrorList::EmailRegisteredWithAnotherProvider.into());
@@ -553,10 +533,7 @@ pub async fn password_reset_initiate(
         .fetch_optional(&state.db_connection_pool)
         .await?;
 
-    let user = match user {
-        Some(u) => u,
-        None => return Err(ErrorList::IncorrectUsername.into()),
-    };
+    let user = user.ok_or(ErrorList::IncorrectUsername)?;
 
     // Generate a code
     let code = generate_unique_id(8);
@@ -655,13 +632,13 @@ pub async fn resend_verification_email(
     if user.email_verified {
         Err(AppError(ErrorList::EmailAlreadyVerified.into()))
     } else if has_valid_email_code(state.clone(), &user).await.is_some() {
-        return Err(AppError(ErrorList::PreviousCodeNotExpired.into()));
+        Err(AppError(ErrorList::PreviousCodeNotExpired.into()))
     } else {
         send_verification_email(&user, state.clone()).await?;
-        return Ok(Json(ApiResponse {
+        Ok(Json(ApiResponse {
             response_type: ResponseType::ResendVerificationEmailSuccess,
             message: "Verification email sent successfully".to_string(),
-        }));
+        }))
     }
 }
 

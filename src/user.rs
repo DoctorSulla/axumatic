@@ -41,42 +41,30 @@ impl From<User> for Profile {
 }
 
 pub async fn get_user_by_email(state: Arc<AppState>, email: &str) -> Result<User, anyhow::Error> {
-    let user = sqlx::query_as::<_, User>("select * from users where email=$1")
+    sqlx::query_as::<_, User>("select * from users where email=$1")
         .bind(email)
         .fetch_optional(&state.db_connection_pool)
-        .await?;
-
-    match user {
-        Some(user) => Ok(user),
-        None => Err(anyhow!("User not found")),
-    }
+        .await?
+        .ok_or_else(|| anyhow!("User not found"))
 }
 
 pub async fn get_user_by_sub(state: Arc<AppState>, sub: &str) -> Result<User, anyhow::Error> {
-    let user = sqlx::query_as::<_, User>("select * from users where sub=$1")
+    sqlx::query_as::<_, User>("select * from users where sub=$1")
         .bind(sub)
         .fetch_optional(&state.db_connection_pool)
-        .await?;
-
-    match user {
-        Some(user) => Ok(user),
-        None => Err(anyhow!("User not found")),
-    }
+        .await?
+        .ok_or_else(|| anyhow!("User not found"))
 }
 
 pub async fn get_user_by_username(
     state: Arc<AppState>,
     username: &str,
 ) -> Result<User, anyhow::Error> {
-    let user = sqlx::query_as::<_, User>("select * from users where username=$1")
+    sqlx::query_as::<_, User>("select * from users where username=$1")
         .bind(username)
         .fetch_optional(&state.db_connection_pool)
-        .await?;
-
-    match user {
-        Some(user) => Ok(user),
-        None => Err(anyhow!("User not found")),
-    }
+        .await?
+        .ok_or_else(|| anyhow!("User not found"))
 }
 
 pub async fn update_google_user_email(

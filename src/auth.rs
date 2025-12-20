@@ -196,17 +196,13 @@ pub async fn add_code(
 pub async fn has_valid_email_code(state: Arc<AppState>, user: &User) -> Option<PgRow> {
     let now = Utc::now().timestamp();
 
-    let code_exists = sqlx::query(
+    sqlx::query(
         "SELECT 1 FROM codes WHERE code_type = 'EmailVerification' AND email = $1 AND expiry_ts > $2"
     )
     .bind(&user.email)
     .bind(now)
     .fetch_optional(&state.db_connection_pool)
-    .await;
-
-    if let Ok(row) = code_exists {
-        return row;
-    }
-
-    None
+    .await
+    .ok()
+    .flatten()
 }

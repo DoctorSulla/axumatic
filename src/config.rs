@@ -96,14 +96,11 @@ impl From<AuthLevel> for String {
 }
 
 pub fn get_config() -> Config {
-    let mut vars = env::vars();
-    let (_key, environment) = vars
-        .find(|kv| kv.0 == "AXUMATIC_ENVIRONMENT")
-        .unwrap_or_else(|| ("".to_string(), "TEST".to_string()));
+    let environment = env::var("AXUMATIC_ENVIRONMENT")
+        .unwrap_or_else(|_| "TEST".to_string());
 
     // Open and parse the config file
     let mut file = match environment.as_str() {
-        "TEST" => File::open("./test-config.toml").expect("Couldn't open config file"),
         "PROD" => File::open("./config.toml").expect("Couldn't open config file"),
         _ => File::open("./test-config.toml").expect("Couldn't open config file"),
     };
@@ -154,13 +151,9 @@ impl Config {
     }
 
     pub fn populate_passwords(&mut self) {
-        let mut vars = env::vars();
-        let (_key, pg_password) = vars
-            .find(|kv| kv.0 == "AXUMATIC_PG_PASSWORD")
+        let pg_password = env::var("AXUMATIC_PG_PASSWORD")
             .expect("AXUMATIC_PG_PASSWORD variable not set");
-
-        let (_key, smtp_password) = vars
-            .find(|kv| kv.0 == "AXUMATIC_SMTP_PASSWORD")
+        let smtp_password = env::var("AXUMATIC_SMTP_PASSWORD")
             .expect("AXUMATIC_SMTP_PASSWORD variable not set");
 
         self.database.password = Some(pg_password);
