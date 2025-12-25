@@ -1,6 +1,8 @@
 use crate::AppState;
 use crate::config::AuthLevel;
-use crate::default_route_handlers::{AppError, CodeType, ErrorList, RegistrationDetails, Username};
+use crate::default_route_handlers::{
+    AppError, CodeType, ErrorList, RegistrationDetails, UserEmail,
+};
 use crate::user::User;
 use crate::utilities::{Email, generate_unique_id, hash_password, send_email};
 use chrono::Utc;
@@ -42,13 +44,13 @@ impl From<IdentityProvider> for String {
 pub async fn validate_cookie(
     headers: &HeaderMap,
     state: Arc<AppState>,
-) -> Result<Username, anyhow::Error> {
+) -> Result<UserEmail, anyhow::Error> {
     if let Some(cookies) = headers.get("cookie") {
         for cookie_string in cookies.to_str()?.split(';') {
             let cookie = Cookie::parse(cookie_string)?;
             if cookie.name() == "session-key" {
-                let session = sqlx::query_as::<_, Username>(
-                    "SELECT username FROM SESSIONS WHERE session_key=$1 AND expiry > $2",
+                let session = sqlx::query_as::<_, UserEmail>(
+                    "SELECT email FROM SESSIONS WHERE session_key=$1 AND expiry > $2",
                 )
                 .bind(cookie.value())
                 .bind(Utc::now().timestamp())
@@ -84,9 +86,9 @@ pub async fn create_session(user: &User, state: Arc<AppState>) -> Result<Cookie<
             * HOURS_IN_DAY as i64
             * SECONDS_IN_HOUR as i64);
 
-    sqlx::query("INSERT INTO sessions(session_key,username, expiry) values($1,$2,$3)")
+    sqlx::query("INSERT INTO sessions(session_key,email, expiry) values($1,$2,$3)")
         .bind(&session_key)
-        .bind(&user.username)
+        .bind(&user.email)
         .bind(expiry)
         .execute(&state.db_connection_pool)
         .await?;

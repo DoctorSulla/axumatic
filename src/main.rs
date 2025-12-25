@@ -2,6 +2,7 @@
 
 use axum::Router;
 use config::AppState;
+use http::StatusCode;
 use middleware::ValidateSessionLayer;
 use routes::*;
 use sqlx::migrate;
@@ -65,11 +66,10 @@ pub fn get_app(state: Arc<AppState>) -> Router {
         .layer(ServiceBuilder::new().layer(ValidateSessionLayer::new(state.clone())))
         .merge(open_routes)
         .with_state(state.clone())
-        .layer(
-            ServiceBuilder::new().layer(TimeoutLayer::new(Duration::from_secs(
-                state.config.server.request_timeout,
-            ))),
-        )
+        .layer(ServiceBuilder::new().layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            Duration::from_secs(state.config.server.request_timeout),
+        )))
         .layer(ServiceBuilder::new().layer(CorsLayer::very_permissive()))
 }
 

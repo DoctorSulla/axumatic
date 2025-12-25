@@ -31,7 +31,7 @@ mod validations;
 
 // Wrapper to allow derived impl of FromRow
 #[derive(FromRow)]
-pub struct Username(pub String);
+pub struct UserEmail(pub String);
 
 // Wrapper to allow derived impl of FromRow
 #[derive(FromRow)]
@@ -194,12 +194,18 @@ impl FromRequestParts<Arc<AppState>> for User {
         parts: &mut http::request::Parts,
         state: &Arc<AppState>,
     ) -> Result<Self, Self::Rejection> {
-        let username = parts.headers.get("username")
+        let email = parts
+            .headers
+            .get("email")
             .ok_or((StatusCode::INTERNAL_SERVER_ERROR, "Expected header missing"))?;
-        let username = username.to_str()
-            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Unexpected error with header value"))?;
-        let user = sqlx::query_as::<_, User>("select * from users where username=$1")
-            .bind(username)
+        let email = email.to_str().map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Unexpected error with header value",
+            )
+        })?;
+        let user = sqlx::query_as::<_, User>("select * from users where email=$1")
+            .bind(email)
             .fetch_optional(&state.db_connection_pool)
             .await;
 

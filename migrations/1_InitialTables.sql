@@ -8,12 +8,12 @@
                 registration_ts BIGINT,
                 identity_provider VARCHAR(30),
                 sub VARCHAR(256),
-                PRIMARY KEY(email,username)
+                PRIMARY KEY(email)
         );
 
         CREATE TABLE IF NOT EXISTS sessions(
             session_key VARCHAR(100),
-            username VARCHAR(50),
+            email VARCHAR(100),
             expiry INTEGER,
             PRIMARY KEY(session_key)
         );
@@ -28,7 +28,7 @@
             used BOOLEAN default false
         );
 
-        CREATE INDEX IF NOT EXISTS user_email ON users(email);
-        CREATE INDEX IF NOT EXISTS user_username ON users(username);
-        CREATE INDEX IF NOT EXISTS sessions_username ON sessions(username);
-        CREATE INDEX IF NOT EXISTS codes_email ON codes(email);
+        CREATE INDEX IF NOT EXISTS idx_user_email ON users(email);
+        CREATE INDEX IF NOT EXISTS idx_user_username ON users(username);
+        CREATE INDEX IF NOT EXISTS idx_sessions_email ON sessions(email);
+        CREATE INDEX IF NOT EXISTS idx_codes_email ON codes(email);

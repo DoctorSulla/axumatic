@@ -61,7 +61,7 @@ async fn delete_reg(username: String, email: String) -> Result<(), anyhow::Error
         .bind(&email)
         .execute(&state.db_connection_pool)
         .await?;
-    sqlx::query("DELETE FROM SESSIONS WHERE username=$1")
+    sqlx::query("DELETE FROM SESSIONS WHERE email=$1")
         .bind(&username)
         .execute(&state.db_connection_pool)
         .await?;
