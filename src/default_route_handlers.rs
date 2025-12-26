@@ -222,6 +222,7 @@ impl FromRequestParts<Arc<AppState>> for User {
                 ));
             }
         };
+
         Err((StatusCode::INTERNAL_SERVER_ERROR, "Error fetching user"))
     }
 }

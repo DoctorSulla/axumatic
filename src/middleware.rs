@@ -9,6 +9,7 @@ use std::{
     task::{Context, Poll},
 };
 use tower::{Layer, Service};
+use tracing::{Level, event};
 
 use crate::{AppState, auth::validate_cookie};
 
@@ -68,7 +69,13 @@ where
                     let future = inner.call(request);
                     future.await?
                 }
-                _ => http::StatusCode::UNAUTHORIZED.into_response(),
+                _ => {
+                    event!(
+                        Level::WARN,
+                        "Attempt to access protected route without valid session"
+                    );
+                    http::StatusCode::UNAUTHORIZED.into_response()
+                }
             };
             Ok(response)
         })
