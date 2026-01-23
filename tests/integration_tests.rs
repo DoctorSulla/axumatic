@@ -65,7 +65,7 @@ async fn _cleanup() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-async fn delete_reg(username: String, email: String) -> Result<(), anyhow::Error> {
+async fn delete_reg(email: String) -> Result<(), anyhow::Error> {
     let state = get_app_state().await;
     sqlx::query!("DELETE FROM users WHERE email = $1", &email)
         .execute(&state.db_connection_pool)
@@ -135,18 +135,18 @@ const SERVER_URL: &str = "http://localhost";
 #[tokio::test]
 async fn register() {
     let port = run_test_app().await;
-    let (username, email, _password, response) = create_valid_reg(port).await;
+    let (_username, email, _password, response) = create_valid_reg(port).await;
     assert_eq!(response.status(), StatusCode::OK);
-    let _ = delete_reg(username, email).await;
+    let _ = delete_reg(email).await;
 }
 
 #[tokio::test]
 async fn login_success() {
     let port = run_test_app().await;
-    let (username, email, password, _response) = create_valid_reg(port).await;
+    let (_username, email, password, _response) = create_valid_reg(port).await;
     let login = login(email.clone(), password, port).await;
     assert!(login.is_some());
-    let _ = delete_reg(username, email).await;
+    let _ = delete_reg(email).await;
 }
 
 #[tokio::test]
@@ -298,7 +298,7 @@ async fn change_password() {
     let port = run_test_app().await;
     let client = Client::new();
     let url = format!("{}:{}/account/changePassword", SERVER_URL, port);
-    let (username, email, password, _response) = create_valid_reg(port).await;
+    let (_username, email, password, _response) = create_valid_reg(port).await;
     let session_key = login(email.clone(), password.clone(), port).await.unwrap();
 
     let new_password = generate_unique_id(20);
@@ -336,7 +336,7 @@ async fn change_password() {
     assert!(test_new_creds.is_some());
 
     assert_eq!(response.response_type, ResponseType::PasswordChangeSuccess);
-    let _ = delete_reg(username, email).await;
+    let _ = delete_reg(email).await;
 }
 
 #[tokio::test]
@@ -344,7 +344,7 @@ async fn change_password_and_use_old_creds() {
     let port = run_test_app().await;
     let client = Client::new();
     let url = format!("{}:{}/account/changePassword", SERVER_URL, port);
-    let (username, email, password, _response) = create_valid_reg(port).await;
+    let (_username, email, password, _response) = create_valid_reg(port).await;
     let session_key = login(email.clone(), password.clone(), port).await.unwrap();
 
     let new_password = generate_unique_id(20);
@@ -382,7 +382,7 @@ async fn change_password_and_use_old_creds() {
     assert!(test_new_creds.is_none());
 
     assert_eq!(response.response_type, ResponseType::PasswordChangeSuccess);
-    let _ = delete_reg(username, email).await;
+    let _ = delete_reg(email).await;
 }
 
 #[tokio::test]
@@ -390,7 +390,7 @@ async fn change_password_invalid_password() {
     let port = run_test_app().await;
     let client = Client::new();
     let url = format!("{}:{}/account/changePassword", SERVER_URL, port);
-    let (username, email, password, _response) = create_valid_reg(port).await;
+    let (_username, email, password, _response) = create_valid_reg(port).await;
     let session_key = login(email.clone(), password.clone(), port).await.unwrap();
 
     let new_password = generate_unique_id(110);
@@ -422,7 +422,7 @@ async fn change_password_invalid_password() {
 
     assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
 
-    let _ = delete_reg(username, email).await;
+    let _ = delete_reg(email).await;
 }
 
 #[tokio::test]
@@ -430,7 +430,7 @@ async fn reset_password() {
     let port = run_test_app().await;
     let client = Client::new();
     let url = format!("{}:{}/account/resetPassword", SERVER_URL, port);
-    let (username, email, _password, _response) = create_valid_reg(port).await;
+    let (_username, email, _password, _response) = create_valid_reg(port).await;
 
     let initiate_reset_password_request = PasswordResetInitiateRequest(email.clone());
     let body = serde_json::to_string(&initiate_reset_password_request).unwrap();
@@ -481,7 +481,7 @@ async fn reset_password() {
         ResponseType::PasswordResetSuccess
     );
 
-    let _ = delete_reg(username, email).await;
+    let _ = delete_reg(email).await;
 }
 
 #[tokio::test]
@@ -490,7 +490,7 @@ async fn check_max_login_attempts() {
     let client = Client::new();
     let config = get_config();
 
-    let (username, email, password, _response) = create_valid_reg(port).await;
+    let (_username, email, password, _response) = create_valid_reg(port).await;
     let mut i: i32 = 0;
 
     while i < config.server.max_unsuccessful_login_attempts {
@@ -521,5 +521,5 @@ async fn check_max_login_attempts() {
         *"Too many login attempts, please reset your password"
     );
 
-    let _ = delete_reg(username, email).await;
+    let _ = delete_reg(email).await;
 }

@@ -1,11 +1,11 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT username FROM sessions WHERE session_key = $1 AND expiry > $2",
+  "query": "SELECT email FROM sessions WHERE session_key = $1 AND expiry > $2",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "username",
+        "name": "email",
         "type_info": "Varchar"
       }
     ],
@@ -19,5 +19,5 @@
       true
     ]
   },
-  "hash": "cecefebde226ecd4ffcceba1da9617810696e51f1e07043362480dd36f9e64d9"
+  "hash": "ef2247b96b9e2712066e911ca64c357bea39911c938f67d106a2630412287530"
 }

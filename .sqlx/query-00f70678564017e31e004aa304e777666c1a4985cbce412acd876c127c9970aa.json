@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT \n                username as \"username!\", \n                email as \"email!\", \n                email_verified as \"email_verified!\", \n                hashed_password, \n                auth_level as \"auth_level!\", \n                login_attempts as \"login_attempts!\", \n                registration_ts as \"registration_ts!\", \n                identity_provider as \"identity_provider!\" \n            FROM users WHERE username = $1",
+  "query": "SELECT \n                username as \"username!\", \n                email as \"email!\", \n                email_verified as \"email_verified!\", \n                hashed_password, \n                auth_level as \"auth_level!\", \n                login_attempts as \"login_attempts!\", \n                registration_ts as \"registration_ts!\", \n                identity_provider as \"identity_provider!\" \n            FROM users WHERE email = $1",
   "describe": {
     "columns": [
       {
@@ -50,7 +50,7 @@
       ]
     },
     "nullable": [
-      false,
+      true,
       false,
       true,
       true,
@@ -60,5 +60,5 @@
       true
     ]
   },
-  "hash": "9e7225190c56d3f060a820f0dd018fcd073290853545d5825b9a12ea38d74418"
+  "hash": "00f70678564017e31e004aa304e777666c1a4985cbce412acd876c127c9970aa"
 }
