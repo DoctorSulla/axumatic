@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE codes SET used = true WHERE email = $1 AND code = $2 AND code_type = 'EmailVerification'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8d1c6861147984f07c810bfd4fec079c87027238ac3166e52538294e149fbe41"
+}

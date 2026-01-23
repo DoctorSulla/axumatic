@@ -41,30 +41,102 @@ impl From<User> for Profile {
 }
 
 pub async fn get_user_by_email(state: Arc<AppState>, email: &str) -> Result<User, anyhow::Error> {
-    sqlx::query_as::<_, User>("select * from users where email=$1")
-        .bind(email)
-        .fetch_optional(&state.db_connection_pool)
-        .await?
-        .ok_or_else(|| anyhow!("User not found"))
+    let row = sqlx::query!(
+        r#"SELECT 
+            username as "username!", 
+            email as "email!", 
+            email_verified as "email_verified!", 
+            hashed_password, 
+            auth_level as "auth_level!", 
+            login_attempts as "login_attempts!", 
+            registration_ts as "registration_ts!", 
+            identity_provider as "identity_provider!" 
+        FROM users WHERE email = $1"#,
+        email
+    )
+    .fetch_optional(&state.db_connection_pool)
+    .await?;
+
+    match row {
+        Some(r) => Ok(User {
+            username: r.username,
+            email: r.email,
+            email_verified: r.email_verified,
+            hashed_password: r.hashed_password,
+            auth_level: r.auth_level,
+            login_attempts: r.login_attempts,
+            registration_ts: r.registration_ts,
+            identity_provider: r.identity_provider,
+        }),
+        None => Err(anyhow!("User not found")),
+    }
 }
 
 pub async fn get_user_by_sub(state: Arc<AppState>, sub: &str) -> Result<User, anyhow::Error> {
-    sqlx::query_as::<_, User>("select * from users where sub=$1")
-        .bind(sub)
-        .fetch_optional(&state.db_connection_pool)
-        .await?
-        .ok_or_else(|| anyhow!("User not found"))
+    let row = sqlx::query!(
+        r#"SELECT 
+            username as "username!", 
+            email as "email!", 
+            email_verified as "email_verified!", 
+            hashed_password, 
+            auth_level as "auth_level!", 
+            login_attempts as "login_attempts!", 
+            registration_ts as "registration_ts!", 
+            identity_provider as "identity_provider!" 
+        FROM users WHERE sub = $1"#,
+        sub
+    )
+    .fetch_optional(&state.db_connection_pool)
+    .await?;
+
+    match row {
+        Some(r) => Ok(User {
+            username: r.username,
+            email: r.email,
+            email_verified: r.email_verified,
+            hashed_password: r.hashed_password,
+            auth_level: r.auth_level,
+            login_attempts: r.login_attempts,
+            registration_ts: r.registration_ts,
+            identity_provider: r.identity_provider,
+        }),
+        None => Err(anyhow!("User not found")),
+    }
 }
 
 pub async fn get_user_by_username(
     state: Arc<AppState>,
     username: &str,
 ) -> Result<User, anyhow::Error> {
-    sqlx::query_as::<_, User>("select * from users where username=$1")
-        .bind(username)
-        .fetch_optional(&state.db_connection_pool)
-        .await?
-        .ok_or_else(|| anyhow!("User not found"))
+    let row = sqlx::query!(
+        r#"SELECT 
+            username as "username!", 
+            email as "email!", 
+            email_verified as "email_verified!", 
+            hashed_password, 
+            auth_level as "auth_level!", 
+            login_attempts as "login_attempts!", 
+            registration_ts as "registration_ts!", 
+            identity_provider as "identity_provider!" 
+        FROM users WHERE username = $1"#,
+        username
+    )
+    .fetch_optional(&state.db_connection_pool)
+    .await?;
+
+    match row {
+        Some(r) => Ok(User {
+            username: r.username,
+            email: r.email,
+            email_verified: r.email_verified,
+            hashed_password: r.hashed_password,
+            auth_level: r.auth_level,
+            login_attempts: r.login_attempts,
+            registration_ts: r.registration_ts,
+            identity_provider: r.identity_provider,
+        }),
+        None => Err(anyhow!("User not found")),
+    }
 }
 
 pub async fn update_google_user_email(
@@ -73,12 +145,14 @@ pub async fn update_google_user_email(
     email_verified: bool,
     sub: &str,
 ) -> Result<(), anyhow::Error> {
-    sqlx::query("update users set email=$1, email_verified=$2 where sub=$3")
-        .bind(new_email)
-        .bind(email_verified)
-        .bind(sub)
-        .execute(&state.db_connection_pool)
-        .await?;
+    sqlx::query!(
+        "UPDATE users SET email = $1, email_verified = $2 WHERE sub = $3",
+        new_email,
+        email_verified,
+        sub
+    )
+    .execute(&state.db_connection_pool)
+    .await?;
 
     Ok(())
 }

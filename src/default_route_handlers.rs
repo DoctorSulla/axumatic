@@ -18,7 +18,6 @@ use cookie::time::Duration;
 use http::header::{self, HeaderMap, SET_COOKIE};
 use jwt_verifier::JwtVerifierClient;
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::{Level, event};
@@ -28,14 +27,6 @@ use crate::{AppState, user::get_user_by_email};
 use crate::{auth::create_session, utilities::*};
 
 mod validations;
-
-// Wrapper to allow derived impl of FromRow
-#[derive(FromRow)]
-pub struct UserEmail(pub String);
-
-// Wrapper to allow derived impl of FromRow
-#[derive(FromRow)]
-pub struct CodeAndEmail(pub String, pub String);
 
 #[derive(Serialize, Deserialize)]
 pub struct PasswordResetInitiateRequest(pub String);
@@ -185,7 +176,7 @@ pub struct RegistrationDetails {
     pub sub: Option<String>,
 }
 
-// Used to extract the user from object from the username header
+// Used to extract the user from object from the email header
 #[async_trait]
 impl FromRequestParts<Arc<AppState>> for User {
     type Rejection = (StatusCode, &'static str);
@@ -204,16 +195,37 @@ impl FromRequestParts<Arc<AppState>> for User {
                 "Unexpected error with header value",
             )
         })?;
-        let user = sqlx::query_as::<_, User>("select * from users where email=$1")
-            .bind(email)
-            .fetch_optional(&state.db_connection_pool)
-            .await;
+        let row = sqlx::query!(
+            r#"SELECT 
+                username as "username!", 
+                email as "email!", 
+                email_verified as "email_verified!", 
+                hashed_password, 
+                auth_level as "auth_level!", 
+                login_attempts as "login_attempts!", 
+                registration_ts as "registration_ts!", 
+                identity_provider as "identity_provider!" 
+            FROM users WHERE email = $1"#,
+            email
+        )
+        .fetch_optional(&state.db_connection_pool)
+        .await;
 
-        match user {
-            Ok(user) => {
-                if let Some(user) = user {
-                    return Ok(user);
-                }
+        match row {
+            Ok(Some(r)) => {
+                return Ok(User {
+                    username: r.username,
+                    email: r.email,
+                    email_verified: r.email_verified,
+                    hashed_password: r.hashed_password,
+                    auth_level: r.auth_level,
+                    login_attempts: r.login_attempts,
+                    registration_ts: r.registration_ts,
+                    identity_provider: r.identity_provider,
+                });
+            }
+            Ok(None) => {
+                return Err((StatusCode::INTERNAL_SERVER_ERROR, "User not found"));
             }
             Err(_e) => {
                 return Err((
@@ -221,9 +233,7 @@ impl FromRequestParts<Arc<AppState>> for User {
                     "Unexpected error fetching user",
                 ));
             }
-        };
-
-        Err((StatusCode::INTERNAL_SERVER_ERROR, "Error fetching user"))
+        }
     }
 }
 
@@ -371,10 +381,12 @@ pub async fn google_login(
                 )
                 .await?;
 
-                sqlx::query("UPDATE users SET email_verified = true WHERE email = $1")
-                    .bind(&registration_details.email)
-                    .execute(&state.db_connection_pool)
-                    .await?;
+                sqlx::query!(
+                    "UPDATE users SET email_verified = true WHERE email = $1",
+                    &registration_details.email
+                )
+                .execute(&state.db_connection_pool)
+                .await?;
 
                 let user = get_user_by_email(state.clone(), &registration_details.email).await?;
                 let session_cookie = create_session(&user, state.clone()).await?;
@@ -409,11 +421,34 @@ pub async fn login(
     State(state): State<Arc<AppState>>,
     Json(login_details): Json<LoginDetails>,
 ) -> Result<(HeaderMap, Json<ApiResponse>), AppError> {
-    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
-        .bind(&login_details.email)
-        .fetch_optional(&state.db_connection_pool)
-        .await?;
-    let user = user.ok_or(ErrorList::IncorrectUsername)?;
+    let row = sqlx::query!(
+        r#"SELECT 
+            username as "username!", 
+            email as "email!", 
+            email_verified as "email_verified!", 
+            hashed_password, 
+            auth_level as "auth_level!", 
+            login_attempts as "login_attempts!", 
+            registration_ts as "registration_ts!", 
+            identity_provider as "identity_provider!" 
+        FROM users WHERE email = $1"#,
+        &login_details.email
+    )
+    .fetch_optional(&state.db_connection_pool)
+    .await?;
+    let user = match row {
+        Some(r) => User {
+            username: r.username,
+            email: r.email,
+            email_verified: r.email_verified,
+            hashed_password: r.hashed_password,
+            auth_level: r.auth_level,
+            login_attempts: r.login_attempts,
+            registration_ts: r.registration_ts,
+            identity_provider: r.identity_provider,
+        },
+        None => return Err(ErrorList::IncorrectUsername.into()),
+    };
 
     if user.identity_provider != "default" {
         return Err(ErrorList::EmailRegisteredWithAnotherProvider.into());
@@ -432,10 +467,12 @@ pub async fn login(
     ) {
         let session_cookie = create_session(&user, state.clone()).await?;
 
-        sqlx::query("UPDATE users SET login_attempts=0 WHERE email=$1")
-            .bind(&user.email)
-            .execute(&state.db_connection_pool)
-            .await?;
+        sqlx::query!(
+            "UPDATE users SET login_attempts = 0 WHERE email = $1",
+            &user.email
+        )
+        .execute(&state.db_connection_pool)
+        .await?;
 
         header_map.insert(header::SET_COOKIE, session_cookie.to_string().parse()?);
         Ok((
@@ -446,11 +483,13 @@ pub async fn login(
             }),
         ))
     } else {
-        let _ = sqlx::query("UPDATE users SET login_attempts=$1 WHERE email=$2")
-            .bind(user.login_attempts + 1)
-            .bind(&login_details.email)
-            .execute(&state.db_connection_pool)
-            .await?;
+        sqlx::query!(
+            "UPDATE users SET login_attempts = $1 WHERE email = $2",
+            user.login_attempts + 1,
+            &login_details.email
+        )
+        .execute(&state.db_connection_pool)
+        .await?;
         Err(ErrorList::IncorrectPassword.into())
     }
 }
@@ -461,12 +500,12 @@ pub async fn verify_email(
 ) -> Result<Json<ApiResponse>, AppError> {
     let now = Utc::now().timestamp();
 
-    let code_exists = sqlx::query(
-        "SELECT 1 FROM codes WHERE code_type = 'EmailVerification' AND email = $1 AND code = $2 AND expiry_ts > $3"
+    let code_exists = sqlx::query!(
+        "SELECT 1 as exists FROM codes WHERE code_type = 'EmailVerification' AND email = $1 AND code = $2 AND expiry_ts > $3",
+        &verification_details.email,
+        &verification_details.code,
+        now
     )
-    .bind(&verification_details.email)
-    .bind(&verification_details.code)
-    .bind(now)
     .fetch_optional(&state.db_connection_pool)
     .await?;
 
@@ -474,17 +513,19 @@ pub async fn verify_email(
         return Err(ErrorList::InvalidVerificationCode.into());
     }
 
-    sqlx::query("UPDATE users SET email_verified = true WHERE email = $1")
-        .bind(&verification_details.email)
-        .execute(&state.db_connection_pool)
-        .await?;
+    sqlx::query!(
+        "UPDATE users SET email_verified = true WHERE email = $1",
+        &verification_details.email
+    )
+    .execute(&state.db_connection_pool)
+    .await?;
 
     // Clean up used code
-    sqlx::query(
-        "UPDATE codes SET used = true WHERE email = $1 AND code=$2 AND code_type='EmailVerification'",
+    sqlx::query!(
+        "UPDATE codes SET used = true WHERE email = $1 AND code = $2 AND code_type = 'EmailVerification'",
+        &verification_details.email,
+        &verification_details.code
     )
-    .bind(&verification_details.email)
-    .bind(&verification_details.code)
     .execute(&state.db_connection_pool)
     .await?;
 
@@ -518,11 +559,13 @@ pub async fn change_password(
 
     let hashed_password = hash_password(&password_details.password);
 
-    sqlx::query("UPDATE users SET hashed_password = $1 WHERE email = $2")
-        .bind(hashed_password)
-        .bind(user.email)
-        .execute(&state.db_connection_pool)
-        .await?;
+    sqlx::query!(
+        "UPDATE users SET hashed_password = $1 WHERE email = $2",
+        hashed_password,
+        user.email
+    )
+    .execute(&state.db_connection_pool)
+    .await?;
 
     Ok(Json(ApiResponse {
         message: "Password changed successfully".to_string(),
@@ -535,12 +578,35 @@ pub async fn password_reset_initiate(
     Json(password_reset_request): Json<PasswordResetInitiateRequest>,
 ) -> Result<Json<ApiResponse>, AppError> {
     // Check if user exists for provided email
-    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
-        .bind(&password_reset_request.0)
-        .fetch_optional(&state.db_connection_pool)
-        .await?;
+    let row = sqlx::query!(
+        r#"SELECT 
+            username as "username!", 
+            email as "email!", 
+            email_verified as "email_verified!", 
+            hashed_password, 
+            auth_level as "auth_level!", 
+            login_attempts as "login_attempts!", 
+            registration_ts as "registration_ts!", 
+            identity_provider as "identity_provider!" 
+        FROM users WHERE email = $1"#,
+        &password_reset_request.0
+    )
+    .fetch_optional(&state.db_connection_pool)
+    .await?;
 
-    let user = user.ok_or(ErrorList::IncorrectUsername)?;
+    let user = match row {
+        Some(r) => User {
+            username: r.username,
+            email: r.email,
+            email_verified: r.email_verified,
+            hashed_password: r.hashed_password,
+            auth_level: r.auth_level,
+            login_attempts: r.login_attempts,
+            registration_ts: r.registration_ts,
+            identity_provider: r.identity_provider,
+        },
+        None => return Err(ErrorList::IncorrectUsername.into()),
+    };
 
     // Generate a code
     let code = generate_unique_id(8);
@@ -578,21 +644,32 @@ pub async fn password_reset_complete(
         return Err(ErrorList::NonMatchingPasswords.into());
     }
 
-    // Check if code is valid
-    let code = sqlx::query_as::<_,CodeAndEmail>("SELECT code,email FROM codes WHERE code_type='PasswordReset' AND used=false AND expiry_ts > $1 AND code=$2")
-            .bind(Utc::now().timestamp())
-                    .bind(password_reset_response.code).fetch_optional(&state.db_connection_pool).await?;
+    let now = Utc::now().timestamp();
 
-    if let Some(code) = code {
+    // Check if code is valid
+    let code = sqlx::query!(
+        "SELECT code, email FROM codes WHERE code_type = 'PasswordReset' AND used = false AND expiry_ts > $1 AND code = $2",
+        now,
+        &password_reset_response.code
+    )
+    .fetch_optional(&state.db_connection_pool)
+    .await?;
+
+    if let Some(code_row) = code {
+        let email = code_row.email.unwrap_or_default();
+        let code_value = code_row.code.unwrap_or_default();
+
         // Update password
-        sqlx::query("UPDATE users SET hashed_password=$1, login_attempts=0 WHERE email=$2")
-            .bind(hash_password(password_reset_response.password.as_str()))
-            .bind(code.1)
-            .execute(&state.db_connection_pool)
-            .await?;
+        sqlx::query!(
+            "UPDATE users SET hashed_password = $1, login_attempts = 0 WHERE email = $2",
+            hash_password(password_reset_response.password.as_str()),
+            &email
+        )
+        .execute(&state.db_connection_pool)
+        .await?;
+
         // Mark code as used
-        sqlx::query("UPDATE codes SET used=true WHERE code=$1")
-            .bind(code.0)
+        sqlx::query!("UPDATE codes SET used = true WHERE code = $1", &code_value)
             .execute(&state.db_connection_pool)
             .await?;
     } else {
@@ -615,8 +692,7 @@ pub async fn get_profile(user: User) -> Result<Json<ApiResponse>, AppError> {
 }
 
 pub async fn logout(State(state): State<Arc<AppState>>, user: User) -> Result<HeaderMap, AppError> {
-    sqlx::query("DELETE FROM sessions WHERE username=$1")
-        .bind(&user.username)
+    sqlx::query!("DELETE FROM sessions WHERE email = $1", &user.email)
         .execute(&state.db_connection_pool)
         .await?;
 
@@ -638,7 +714,7 @@ pub async fn resend_verification_email(
 ) -> Result<Json<ApiResponse>, AppError> {
     if user.email_verified {
         Err(AppError(ErrorList::EmailAlreadyVerified.into()))
-    } else if has_valid_email_code(state.clone(), &user).await.is_some() {
+    } else if has_valid_email_code(state.clone(), &user).await {
         Err(AppError(ErrorList::PreviousCodeNotExpired.into()))
     } else {
         send_verification_email(&user, state.clone()).await?;

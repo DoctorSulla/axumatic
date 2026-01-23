@@ -1,15 +1,12 @@
 use crate::AppState;
 use crate::config::AuthLevel;
-use crate::default_route_handlers::{
-    AppError, CodeType, ErrorList, RegistrationDetails, UserEmail,
-};
+use crate::default_route_handlers::{AppError, CodeType, ErrorList, RegistrationDetails};
 use crate::user::User;
 use crate::utilities::{Email, generate_unique_id, hash_password, send_email};
 use chrono::Utc;
 use cookie::Cookie;
 use cookie::time::Duration;
 use http::HeaderMap;
-use sqlx::postgres::PgRow;
 use std::sync::Arc;
 use tracing::{Level, event};
 
@@ -44,20 +41,20 @@ impl From<IdentityProvider> for String {
 pub async fn validate_cookie(
     headers: &HeaderMap,
     state: Arc<AppState>,
-) -> Result<UserEmail, anyhow::Error> {
+) -> Result<String, anyhow::Error> {
     if let Some(cookies) = headers.get("cookie") {
         for cookie_string in cookies.to_str()?.split(';') {
             let cookie = Cookie::parse(cookie_string)?;
             if cookie.name() == "session-key" {
-                let session = sqlx::query_as::<_, UserEmail>(
-                    "SELECT email FROM SESSIONS WHERE session_key=$1 AND expiry > $2",
+                let session = sqlx::query!(
+                    "SELECT email FROM sessions WHERE session_key = $1 AND expiry > $2",
+                    cookie.value(),
+                    Utc::now().timestamp() as i32
                 )
-                .bind(cookie.value())
-                .bind(Utc::now().timestamp())
                 .fetch_optional(&state.db_connection_pool)
                 .await?;
-                if let Some(username) = session {
-                    return Ok(username);
+                if let Some(row) = session {
+                    return Ok(row.email.unwrap_or_default());
                 }
                 event!(
                     Level::INFO,
@@ -86,12 +83,14 @@ pub async fn create_session(user: &User, state: Arc<AppState>) -> Result<Cookie<
             * HOURS_IN_DAY as i64
             * SECONDS_IN_HOUR as i64);
 
-    sqlx::query("INSERT INTO sessions(session_key,email, expiry) values($1,$2,$3)")
-        .bind(&session_key)
-        .bind(&user.email)
-        .bind(expiry)
-        .execute(&state.db_connection_pool)
-        .await?;
+    sqlx::query!(
+        "INSERT INTO sessions (session_key, email, expiry) VALUES ($1, $2, $3)",
+        &session_key,
+        &user.email,
+        expiry as i32
+    )
+    .execute(&state.db_connection_pool)
+    .await?;
 
     Ok(session_cookie)
 }
@@ -110,27 +109,37 @@ pub async fn create_registration(
 
     let hashed_password = hash_password(&registration_details.password);
     let registration_ts = Utc::now().timestamp();
+    let identity_provider_str = String::from(identity_provider.clone());
 
     match identity_provider {
-        IdentityProvider::Google => sqlx::query(
-            "INSERT INTO USERS(email,username,registration_ts,identity_provider,sub) values($1,$2,$3,$4,$5)"
-        )
-    .bind(&registration_details.email)
-    .bind(&registration_details.username)
-    .bind(registration_ts)
-    .bind(String::from(identity_provider.clone()))
-    .bind(registration_details.sub.as_ref().expect("Sub missing for Google registration"))
-    .execute(&state.db_connection_pool)
-    .await?,
-        IdentityProvider::Default => sqlx::query(
-            "INSERT INTO USERS(email,username,hashed_password,registration_ts,identity_provider) values($1,$2,$3,$4,$5)",
-        )
-    .bind(&registration_details.email)
-    .bind(&registration_details.username)
-    .bind(&hashed_password)
-    .bind(registration_ts)
-    .bind(String::from(identity_provider.clone()))
-    .execute(&state.db_connection_pool).await?
+        IdentityProvider::Google => {
+            let sub = registration_details
+                .sub
+                .as_ref()
+                .expect("Sub missing for Google registration");
+            sqlx::query!(
+                "INSERT INTO users (email, username, registration_ts, identity_provider, sub) VALUES ($1, $2, $3, $4, $5)",
+                &registration_details.email,
+                &registration_details.username,
+                registration_ts,
+                &identity_provider_str,
+                sub
+            )
+            .execute(&state.db_connection_pool)
+            .await?
+        }
+        IdentityProvider::Default => {
+            sqlx::query!(
+                "INSERT INTO users (email, username, hashed_password, registration_ts, identity_provider) VALUES ($1, $2, $3, $4, $5)",
+                &registration_details.email,
+                &registration_details.username,
+                &hashed_password,
+                registration_ts,
+                &identity_provider_str
+            )
+            .execute(&state.db_connection_pool)
+            .await?
+        }
     };
     Ok(User {
         username: registration_details.username.clone(),
@@ -182,29 +191,33 @@ pub async fn add_code(
     code: &String,
     code_type: CodeType,
 ) -> Result<(), anyhow::Error> {
-    let _created = sqlx::query(
-        "INSERT INTO CODES(code_type,email,code,created_ts,expiry_ts) values($1,$2,$3,$4,$5)",
+    let code_type_str: String = code_type.into();
+    let created_ts = Utc::now().timestamp();
+    let expiry_ts = created_ts + SECONDS_IN_HOUR as i64;
+
+    sqlx::query!(
+        "INSERT INTO codes (code_type, email, code, created_ts, expiry_ts) VALUES ($1, $2, $3, $4, $5)",
+        &code_type_str,
+        email,
+        code,
+        created_ts,
+        expiry_ts
     )
-    .bind(Into::<String>::into(code_type))
-    .bind(email)
-    .bind(code)
-    .bind(Utc::now().timestamp())
-    .bind(Utc::now().timestamp() + SECONDS_IN_HOUR as i64)
     .execute(&state.db_connection_pool)
     .await?;
     Ok(())
 }
 
-pub async fn has_valid_email_code(state: Arc<AppState>, user: &User) -> Option<PgRow> {
+pub async fn has_valid_email_code(state: Arc<AppState>, user: &User) -> bool {
     let now = Utc::now().timestamp();
 
-    sqlx::query(
-        "SELECT 1 FROM codes WHERE code_type = 'EmailVerification' AND email = $1 AND expiry_ts > $2"
+    let code_exists = sqlx::query!(
+        "SELECT 1 as exists FROM codes WHERE code_type = 'EmailVerification' AND email = $1 AND expiry_ts > $2",
+        &user.email,
+        now
     )
-    .bind(&user.email)
-    .bind(now)
     .fetch_optional(&state.db_connection_pool)
-    .await
-    .ok()
-    .flatten()
+    .await;
+
+    matches!(code_exists, Ok(Some(_)))
 }

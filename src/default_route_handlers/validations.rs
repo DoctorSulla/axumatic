@@ -37,14 +37,14 @@ pub async fn is_unique(
         &email
     );
 
-    let username = sqlx::query("SELECT 1 FROM users WHERE username=$1")
-        .bind(username)
-        .fetch_optional(&state.db_connection_pool)
-        .await;
+    let username_exists = sqlx::query!(
+        "SELECT 1 as exists FROM users WHERE username = $1",
+        username
+    )
+    .fetch_optional(&state.db_connection_pool)
+    .await;
 
-    if let Ok(user) = username
-        && user.is_some()
-    {
+    if let Ok(Some(_)) = username_exists {
         event!(
             Level::INFO,
             "Attempted registration with duplicate username"
@@ -52,14 +52,11 @@ pub async fn is_unique(
         return Err(ErrorList::UsernameAlreadyRegistered);
     }
 
-    let email = sqlx::query("SELECT email FROM users WHERE email=$1")
-        .bind(email)
+    let email_exists = sqlx::query!("SELECT email FROM users WHERE email = $1", email)
         .fetch_optional(&state.db_connection_pool)
         .await;
 
-    if let Ok(email) = email
-        && email.is_some()
-    {
+    if let Ok(Some(_)) = email_exists {
         event!(Level::INFO, "Attempted registration with duplicate email");
         return Err(ErrorList::EmailAlreadyRegistered);
     }

@@ -70,9 +70,8 @@ pub fn generate_unique_id(length: u8) -> String {
 pub async fn start_session_cleaner(state: Arc<AppState>) {
     tokio::spawn(async move {
         loop {
-            let now = Utc::now().timestamp();
-            let delete = sqlx::query("DELETE FROM sessions WHERE $1 > expiry")
-                .bind(now)
+            let now = Utc::now().timestamp() as i32;
+            let delete = sqlx::query!("DELETE FROM sessions WHERE $1 > expiry", now)
                 .execute(&state.db_connection_pool)
                 .await;
             match delete {

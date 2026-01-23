@@ -1,17 +1,16 @@
-use crate::config::get_config;
-use crate::default_route_handlers::{
+use axumatic::config::get_config;
+use axumatic::default_route_handlers::{
     ApiResponse, ChangePassword, LoginDetails, PasswordResetCompleteRequest,
     PasswordResetInitiateRequest, ResponseType,
 };
-use crate::utilities::generate_unique_id;
-use crate::{default_route_handlers::RegistrationDetails, get_app, get_app_state};
+use axumatic::utilities::generate_unique_id;
+use axumatic::{default_route_handlers::RegistrationDetails, get_app, get_app_state};
 use http::header::{CONTENT_TYPE, COOKIE};
 use http::{HeaderValue, StatusCode};
 use reqwest::header::HeaderMap;
 use reqwest::{Client, Response};
 use serde::{Deserialize, Serialize};
 use serde_json;
-use sqlx::prelude::FromRow;
 use std::sync::Once;
 
 static INIT: Once = Once::new();
@@ -26,14 +25,14 @@ fn init_tracing() {
     });
 }
 
-#[derive(Serialize, Deserialize, FromRow, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct Code {
-    code_type: String,
-    email: String,
-    code: String,
-    created_ts: i64,
-    expiry_ts: i64,
-    used: bool,
+    code_type: Option<String>,
+    email: Option<String>,
+    code: Option<String>,
+    created_ts: Option<i64>,
+    expiry_ts: Option<i64>,
+    used: Option<bool>,
 }
 
 async fn run_test_app() -> u16 {
@@ -54,13 +53,13 @@ async fn run_test_app() -> u16 {
 
 async fn _cleanup() -> Result<(), anyhow::Error> {
     let state = get_app_state().await;
-    sqlx::query("DELETE FROM USERS")
+    sqlx::query!("DELETE FROM users")
         .execute(&state.db_connection_pool)
         .await?;
-    sqlx::query("DELETE FROM CODES")
+    sqlx::query!("DELETE FROM codes")
         .execute(&state.db_connection_pool)
         .await?;
-    sqlx::query("DELETE FROM SESSIONS")
+    sqlx::query!("DELETE FROM sessions")
         .execute(&state.db_connection_pool)
         .await?;
     Ok(())
@@ -68,16 +67,13 @@ async fn _cleanup() -> Result<(), anyhow::Error> {
 
 async fn delete_reg(username: String, email: String) -> Result<(), anyhow::Error> {
     let state = get_app_state().await;
-    sqlx::query("DELETE FROM USERS WHERE email=$1")
-        .bind(&email)
+    sqlx::query!("DELETE FROM users WHERE email = $1", &email)
         .execute(&state.db_connection_pool)
         .await?;
-    sqlx::query("DELETE FROM CODES WHERE email=$1")
-        .bind(&email)
+    sqlx::query!("DELETE FROM codes WHERE email = $1", &email)
         .execute(&state.db_connection_pool)
         .await?;
-    sqlx::query("DELETE FROM SESSIONS WHERE email=$1")
-        .bind(&username)
+    sqlx::query!("DELETE FROM sessions WHERE email = $1", &email)
         .execute(&state.db_connection_pool)
         .await?;
 
@@ -449,15 +445,20 @@ async fn reset_password() {
 
     let pool = get_config().get_db_pool().await;
 
-    let code = sqlx::query_as::<_, Code>("SELECT code,email,code_type,created_ts,expiry_ts,used FROM codes WHERE email=$1 AND code_type='PasswordReset' AND used=false")
-        .bind(&email)
-        .fetch_optional(&pool)
-        .await.unwrap().unwrap();
+    let code = sqlx::query_as!(
+        Code,
+        "SELECT code, email, code_type, created_ts, expiry_ts, used FROM codes WHERE email = $1 AND code_type = 'PasswordReset' AND used = false",
+        &email
+    )
+    .fetch_optional(&pool)
+    .await
+    .unwrap()
+    .unwrap();
 
     let new_password = generate_unique_id(25);
 
     let complete_reset_password_request = PasswordResetCompleteRequest {
-        code: code.code,
+        code: code.code.unwrap(),
         password: new_password.clone(),
         confirm_password: new_password.clone(),
     };

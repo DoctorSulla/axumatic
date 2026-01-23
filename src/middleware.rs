@@ -64,7 +64,7 @@ where
                 Ok(email) => {
                     request
                         .headers_mut()
-                        .insert("email", HeaderValue::from_str(email.0.as_str()).unwrap());
+                        .insert("email", HeaderValue::from_str(&email).unwrap());
 
                     let future = inner.call(request);
                     future.await?

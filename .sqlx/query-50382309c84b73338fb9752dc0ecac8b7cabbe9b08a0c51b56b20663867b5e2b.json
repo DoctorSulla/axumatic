@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT \n            username as \"username!\", \n            email as \"email!\", \n            email_verified as \"email_verified!\", \n            hashed_password, \n            auth_level as \"auth_level!\", \n            login_attempts as \"login_attempts!\", \n            registration_ts as \"registration_ts!\", \n            identity_provider as \"identity_provider!\" \n        FROM users WHERE username = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "username!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "email!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "email_verified!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 3,
+        "name": "hashed_password",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "auth_level!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "login_attempts!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "registration_ts!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "identity_provider!",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "50382309c84b73338fb9752dc0ecac8b7cabbe9b08a0c51b56b20663867b5e2b"
+}

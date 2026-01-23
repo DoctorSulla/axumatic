@@ -3,6 +3,18 @@ name = "axumatic"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = []
+test-utils = []
+
+[lib]
+name = "axumatic"
+path = "src/lib.rs"
+
+[[bin]]
+name = "axumatic"
+path = "src/main.rs"
+
 [dependencies]
 anyhow = "1.0.89"
 argon2 = "0.5.3"
@@ -30,3 +42,4 @@ jwt_verifier = { git = "https://github.com/DoctorSulla/jwt_verifier" }
 
 [dev-dependencies]
 reqwest = { version = "0.12.9", features = ["cookies"] }
+axumatic = { path = ".", features = ["test-utils"] }
