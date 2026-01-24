@@ -1,6 +1,6 @@
 import { dev } from '$app/environment';
 
-let API_BASE_URL = 'https://api.halliday.dev';
+let API_BASE_URL = 'http://localhost:3000';
 
 if (dev) {
 	API_BASE_URL = 'http://localhost:3000';

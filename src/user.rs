@@ -41,7 +41,8 @@ impl From<User> for Profile {
 }
 
 pub async fn get_user_by_email(state: Arc<AppState>, email: &str) -> Result<User, anyhow::Error> {
-    let row = sqlx::query!(
+    let row = sqlx::query_as!(
+        User,
         r#"SELECT 
             username as "username!", 
             email as "email!", 
@@ -58,22 +59,14 @@ pub async fn get_user_by_email(state: Arc<AppState>, email: &str) -> Result<User
     .await?;
 
     match row {
-        Some(r) => Ok(User {
-            username: r.username,
-            email: r.email,
-            email_verified: r.email_verified,
-            hashed_password: r.hashed_password,
-            auth_level: r.auth_level,
-            login_attempts: r.login_attempts,
-            registration_ts: r.registration_ts,
-            identity_provider: r.identity_provider,
-        }),
+        Some(r) => Ok(r),
         None => Err(anyhow!("User not found")),
     }
 }
 
 pub async fn get_user_by_sub(state: Arc<AppState>, sub: &str) -> Result<User, anyhow::Error> {
-    let row = sqlx::query!(
+    let row = sqlx::query_as!(
+        User,
         r#"SELECT 
             username as "username!", 
             email as "email!", 
@@ -90,16 +83,7 @@ pub async fn get_user_by_sub(state: Arc<AppState>, sub: &str) -> Result<User, an
     .await?;
 
     match row {
-        Some(r) => Ok(User {
-            username: r.username,
-            email: r.email,
-            email_verified: r.email_verified,
-            hashed_password: r.hashed_password,
-            auth_level: r.auth_level,
-            login_attempts: r.login_attempts,
-            registration_ts: r.registration_ts,
-            identity_provider: r.identity_provider,
-        }),
+        Some(r) => Ok(r),
         None => Err(anyhow!("User not found")),
     }
 }
@@ -108,7 +92,8 @@ pub async fn get_user_by_username(
     state: Arc<AppState>,
     username: &str,
 ) -> Result<User, anyhow::Error> {
-    let row = sqlx::query!(
+    let row = sqlx::query_as!(
+        User,
         r#"SELECT 
             username as "username!", 
             email as "email!", 
@@ -125,16 +110,7 @@ pub async fn get_user_by_username(
     .await?;
 
     match row {
-        Some(r) => Ok(User {
-            username: r.username,
-            email: r.email,
-            email_verified: r.email_verified,
-            hashed_password: r.hashed_password,
-            auth_level: r.auth_level,
-            login_attempts: r.login_attempts,
-            registration_ts: r.registration_ts,
-            identity_provider: r.identity_provider,
-        }),
+        Some(r) => Ok(r),
         None => Err(anyhow!("User not found")),
     }
 }

@@ -21,6 +21,7 @@ use tracing::{Level, event};
 
 pub mod auth;
 pub mod config;
+pub mod custom_route_handlers;
 pub mod default_route_handlers;
 pub mod middleware;
 pub mod routes;
@@ -59,7 +60,7 @@ async fn serve_frontend(request: Request) -> Response {
         path = "index.html".to_string();
     } else {
         // Check if the last segment has an extension
-        let last_segment = path.split('/').last().unwrap_or("");
+        let last_segment = path.split('/').next_back().unwrap_or("");
         let has_extension = last_segment.contains('.') && !last_segment.ends_with('.');
 
         // If no extension, treat as directory and append index.html

@@ -5,7 +5,7 @@ fn main() {
     println!("cargo:rerun-if-changed=frontend/package.json");
 
     let pnpm_install = Command::new("pnpm")
-        .args(&["install"])
+        .args(["install"])
         .current_dir("./frontend")
         .status()
         .expect("Failed to run pnpm install");
@@ -17,7 +17,7 @@ fn main() {
     }
 
     let pnpm_build = Command::new("pnpm")
-        .args(&["run", "build"])
+        .args(["run", "build"])
         .current_dir("./frontend")
         .status()
         .expect("Failed to run pnpm run build");
