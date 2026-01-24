@@ -21,6 +21,24 @@ If you want to use a different frontend it should be pretty easy to swap out as 
 - middleware.rs - Contains the middleware which validates the user has a valid session for protected routes.
 - utilities.rs - Contains various utility functions which might be used throughout the app.
 
+## Default Routes
+### Authenticated
+- /account/verifyEmail (POST) - Takes a user's email verification code and verifies it against the generated value.
+- /account/changePassword (PATCH) - Takes the user's current password and updates it to the specified value in new password.
+- /account/profile (GET) - Provides some basic information about the logged in user.
+- /account/logout (GET) - Destroys the user's current session.
+- /account/verificationEmail (GET) - Resends the user's verification email if the previous code has expired.
+
+### Unauthenticated
+- /account/register (POST) - Takes some details and creates a new user.
+- /account/login (POST) - Verifies provided details and creates a session.
+- /account/login/google (POST) - Handles logins for users using Google OAuth.
+- /account/resetPassword (POST) - Initiates password reset by sending the user a password reset email.
+- /account/resetPassword (PATCH) - Updates the user's new password if the code provided matches.
+- /healthCheck (GET) - Returns a 204 if the server is running.
+- /nonce (GET) - Provides a nonce to be used to prevent replay attacks.
+
+
 # Development
 ## Pre-requisities
 - You will need a PostgreSql instance. There is an included Docker file for creating a test database but you could also install Postgre locally or use a managed service.
