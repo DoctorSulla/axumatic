@@ -40,14 +40,16 @@ If you want to use a different frontend it should be pretty easy to swap out as 
 
 
 # Development
-## Pre-requisities
-- You will need a PostgreSql instance. There is an included Docker file for creating a test database but you could also install Postgre locally or use a managed service.
+## Prerequisities
+- You will need a PostgreSql instance. There is an included script (create_test_pg.sh) for creating a test database in Docker but you could also install PostgreSql locally or use a managed service.
 - The Svelte frontend is built using PNPM so you will need this or equivalent if you want to build or run the frontend.
 - Set up your environment variables (details in below section)
 - Set up your test-config.toml (details in below section)
 
 
-To run the frontend and the backend simply run cargo run which will start the application on the port specified in your config.
+To run the frontend and the backend simply run cargo run which will start the application on the port specified in your config. Assuming you have pnpm installed the build.rs file will handle building your frontend as well.
+
+You can use the provided hot_reload.sh with watchexec to get a smoother developer experience.
 
 
 # Environment Variables
@@ -67,13 +69,13 @@ Various options in the server can be controlled using the config.toml (or test-c
 
 ## email
 - server_url - The SMTP server url
-- username = The username to connect to the SMTP server
+- username - The username to connect to the SMTP server
 - pool_size - The maximum email pool size
-- send_emails = Whether or not emails are actually sent. This should be true in production and can be true or false in test depending on your requirements.
+- send_emails - Whether or not emails are actually sent. This should be true in production and can be true or false in test depending on your requirements.
 
 ## server
 - request_timeout - How long it will take a request to timeout in seconds.
-- port = - The port which the server will run on
+- port - The port which the server will run on
 - max_unsuccessful_login_attempts - The maximum number of unsuccessful logon attempts before an account is locked.
 - session_length_in_days - The length a session will be valid for in days.
 - google_client_id - The Google client ID if you are using OAuth
@@ -93,7 +95,10 @@ Users are stored in the database with a hashed and salted password. I have also 
 
 
 # Known issues
-- Error handling is a bit consistent and reflective of the fact I was learning more about Rust error handling as I was going.
+- Error handling is a bit inconsistent and reflective of the fact I was learning more about Rust error handling as I was going.
 - Some of the errors almost certainly leak out more of the internal implementation than they should.
 - Structure of the project could be better. Some stuff is in the wrong place and Default Route Handlers is getting a bit long.
 - There is a lot of logic which is not covered by tests. There's a lot more cases to cover doing auth than I originally thought.
+
+# License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
