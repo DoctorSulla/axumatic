@@ -4,7 +4,7 @@ use axumatic::{get_app, get_app_state, migrations, utilities::start_session_clea
 use tracing::{Level, event, span};
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), anyhow::Error> {
     // Start tracing
     tracing_subscriber::FmtSubscriber::builder()
         .with_ansi(true)
@@ -24,8 +24,9 @@ async fn main() {
 
     let app = get_app(app_state.clone());
 
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", app_state.config.server.port))
-        .await
-        .unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let listener =
+        tokio::net::TcpListener::bind(("127.0.0.1", app_state.config.server.port)).await?;
+    axum::serve(listener, app).await?;
+
+    Ok(())
 }

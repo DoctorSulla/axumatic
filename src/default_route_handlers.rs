@@ -101,6 +101,8 @@ pub enum ErrorList {
         "You must wait for your previous email verification code to expire before you can send another"
     )]
     PreviousCodeNotExpired,
+    #[error("Password not provided")]
+    PasswordNotProvided,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -196,15 +198,15 @@ impl FromRequestParts<Arc<AppState>> for User {
             )
         })?;
         let row = sqlx::query!(
-            r#"SELECT 
-                username as "username!", 
-                email as "email!", 
-                email_verified as "email_verified!", 
-                hashed_password, 
-                auth_level as "auth_level!", 
-                login_attempts as "login_attempts!", 
-                registration_ts as "registration_ts!", 
-                identity_provider as "identity_provider!" 
+            r#"SELECT
+                username as "username!",
+                email as "email!",
+                email_verified as "email_verified!",
+                hashed_password,
+                auth_level as "auth_level!",
+                login_attempts as "login_attempts!",
+                registration_ts as "registration_ts!",
+                identity_provider as "identity_provider!"
             FROM users WHERE email = $1"#,
             email
         )
@@ -422,15 +424,15 @@ pub async fn login(
     Json(login_details): Json<LoginDetails>,
 ) -> Result<(HeaderMap, Json<ApiResponse>), AppError> {
     let row = sqlx::query!(
-        r#"SELECT 
-            username as "username!", 
-            email as "email!", 
-            email_verified as "email_verified!", 
-            hashed_password, 
-            auth_level as "auth_level!", 
-            login_attempts as "login_attempts!", 
-            registration_ts as "registration_ts!", 
-            identity_provider as "identity_provider!" 
+        r#"SELECT
+            username as "username!",
+            email as "email!",
+            email_verified as "email_verified!",
+            hashed_password,
+            auth_level as "auth_level!",
+            login_attempts as "login_attempts!",
+            registration_ts as "registration_ts!",
+            identity_provider as "identity_provider!"
         FROM users WHERE email = $1"#,
         &login_details.email
     )
@@ -459,12 +461,11 @@ pub async fn login(
         return Err(ErrorList::TooManyLoginAttempts.into());
     }
     let mut header_map = HeaderMap::new();
-    if verify_password(
-        user.hashed_password
-            .as_ref()
-            .expect("User missing password"),
-        &login_details.password,
-    ) {
+    let hashed_password = user
+        .hashed_password
+        .as_ref()
+        .ok_or(ErrorList::PasswordNotProvided)?;
+    if verify_password(hashed_password, &login_details.password) {
         let session_cookie = create_session(&user, state.clone()).await?;
 
         sqlx::query!(
@@ -579,15 +580,15 @@ pub async fn password_reset_initiate(
 ) -> Result<Json<ApiResponse>, AppError> {
     // Check if user exists for provided email
     let row = sqlx::query!(
-        r#"SELECT 
-            username as "username!", 
-            email as "email!", 
-            email_verified as "email_verified!", 
-            hashed_password, 
-            auth_level as "auth_level!", 
-            login_attempts as "login_attempts!", 
-            registration_ts as "registration_ts!", 
-            identity_provider as "identity_provider!" 
+        r#"SELECT
+            username as "username!",
+            email as "email!",
+            email_verified as "email_verified!",
+            hashed_password,
+            auth_level as "auth_level!",
+            login_attempts as "login_attempts!",
+            registration_ts as "registration_ts!",
+            identity_provider as "identity_provider!"
         FROM users WHERE email = $1"#,
         &password_reset_request.0
     )

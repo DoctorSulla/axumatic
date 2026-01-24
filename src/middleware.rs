@@ -62,9 +62,10 @@ where
         Box::pin(async move {
             let response: Response = match validate_cookie(request.headers(), state).await {
                 Ok(email) => {
-                    request
-                        .headers_mut()
-                        .insert("email", HeaderValue::from_str(&email).unwrap());
+                    request.headers_mut().insert(
+                        "email",
+                        HeaderValue::from_str(&email).expect("Unable to set email as header"),
+                    );
 
                     let future = inner.call(request);
                     future.await?

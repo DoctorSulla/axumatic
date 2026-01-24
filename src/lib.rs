@@ -3,7 +3,7 @@
 use axum::Router;
 use axum::body::Body;
 use axum::extract::Request;
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use config::AppState;
 use http::StatusCode;
 use middleware::ValidateSessionLayer;
@@ -81,14 +81,14 @@ async fn serve_frontend(request: Request) -> Response {
             .status(StatusCode::OK)
             .header("Content-Type", mime_type.as_ref())
             .body(Body::from(asset.data))
-            .unwrap()
+            .unwrap_or("<h1>404 - Not found</h1>".into_response())
     } else {
         event!(Level::WARN, "Frontend file not found: {}", path);
         Response::builder()
             .status(StatusCode::NOT_FOUND)
             .header("Content-Type", "text/html; charset=utf-8")
             .body(Body::from("<h1>404 - Not found</h1>"))
-            .unwrap()
+            .unwrap_or("<h1>404 - Not found</h1>".into_response())
     }
 }
 
