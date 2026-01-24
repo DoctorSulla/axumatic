@@ -1,4 +1,4 @@
-## axumatic
+# Introduction
 When generating new Rust projects I found myself spending a lot of
 time adding similar crates and writing boilerplate so have created this repository as
 a template for web applications to reduce the amount of time I spend rewriting the same thing
@@ -39,26 +39,26 @@ The following environment variables are used:
 - AXUMATIC_ENVIRONMENT - This can be PROD or TEST and will determine whether to use config.toml or test-config.toml
 
 # Configuration
-Various options in the server can be controlled using the config.toml (or test-config.toml for development). The options are detailed below:
+Various options in the server can be controlled using the config.toml (or test-config.toml for development). The options are split into sections and detailed below:
 
 
 ## database
-username - The username for connecting to the database
-connection_url - The url for connecting to the database
-pool_size = The pool size for the database
+- username - The username for connecting to the database
+- connection_url - The url for connecting to the database
+- pool_size - The pool size for the database
 
 ## email
-server_url - The SMTP server url
-username = The username to connect to the SMTP server
-pool_size - The maximum email pool size
-send_emails = Whether or not emails are actually sent. This should be true in production and can be true or false in test depending on your requirements.
+- server_url - The SMTP server url
+- username = The username to connect to the SMTP server
+- pool_size - The maximum email pool size
+- send_emails = Whether or not emails are actually sent. This should be true in production and can be true or false in test depending on your requirements.
 
 ## server
-request_timeout - How long it will take a request to timeout in seconds.
-port = - The port which the server will run on
-max_unsuccessful_login_attempts - The maximum number of unsuccessful logon attempts before an account is locked.
-session_length_in_days - The length a session will be valid for in days.
-google_client_id - The Google client ID if you are using OAuth
+- request_timeout - How long it will take a request to timeout in seconds.
+- port = - The port which the server will run on
+- max_unsuccessful_login_attempts - The maximum number of unsuccessful logon attempts before an account is locked.
+- session_length_in_days - The length a session will be valid for in days.
+- google_client_id - The Google client ID if you are using OAuth
 
 # Testing
 To run the tests run cargo test --features test-utils. You will need a running PostgreSql instance to run the integration tests.
@@ -72,8 +72,6 @@ For email I am planning on using Amazon SES but as it is just an SMTP server, an
 
 # Users and Auth
 Users are stored in the database with a hashed and salted password. I have also written but not tested most of the code required to integrate with Google as an identity provider. Sessions are created at login, stored in a separate table and managed with a session cookie which is authenticated by a middleware layer.
-
-
 
 
 # Known issues
