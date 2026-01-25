@@ -82,6 +82,8 @@
 				</button>
 			</div>
 		</form>
-		<GoogleSignIn />
+		<div class="m-auto w-fit">
+			<GoogleSignIn />
+		</div>
 	</div>
 </div>

@@ -31,13 +31,17 @@ pub struct Config {
 pub struct DatabaseConfig {
     pub pool_size: u32,
     pub username: String,
-    pub password: String,
+    pub password: Option<String>,
     pub connection_url: String,
 }
 
 impl DatabaseConfig {
     pub fn get_connection_string(&self) -> String {
-        let password = self.password.clone();
+        let password = self
+            .password
+            .as_ref()
+            .clone()
+            .expect("Database password must be set in environment");
         format!(
             "postgresql://{}:{}@{}",
             self.username, password, self.connection_url
@@ -47,7 +51,10 @@ impl DatabaseConfig {
 
 impl SmtpConfig {
     pub fn get_password(&self) -> String {
-        self.password.clone()
+        self.password
+            .as_ref()
+            .expect("Email password must be set in environment")
+            .to_string()
     }
 }
 
@@ -55,7 +62,7 @@ impl SmtpConfig {
 pub struct SmtpConfig {
     pub server_url: String,
     pub username: String,
-    pub password: String,
+    pub password: Option<String>,
     pub pool_size: u32,
     pub send_emails: bool,
 }
@@ -155,7 +162,7 @@ impl Config {
         let smtp_password =
             env::var("AXUMATIC_SMTP_PASSWORD").expect("AXUMATIC_SMTP_PASSWORD variable not set");
 
-        self.database.password = pg_password;
-        self.email.password = smtp_password;
+        self.database.password = Some(pg_password);
+        self.email.password = Some(smtp_password);
     }
 }

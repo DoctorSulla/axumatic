@@ -14,11 +14,17 @@
 		allowed: 'always' | 'authenticated' | 'unauthenticated';
 	}
 
-	let links: Route[] = [
+	let links: Route[] = $state([]);
+
+	const loggedInLinks: Route[] = [
+		{ text: 'Home', href: '/', allowed: 'always' },
+		{ text: 'Profile', href: '/profile', allowed: 'authenticated' }
+	];
+
+	const loggedOutLinks: Route[] = [
 		{ text: 'Home', href: '/', allowed: 'always' },
 		{ text: 'Register', href: '/register', allowed: 'unauthenticated' },
-		{ text: 'Login', href: '/login', allowed: 'unauthenticated' },
-		{ text: 'Profile', href: '/profile', allowed: 'authenticated' }
+		{ text: 'Login', href: '/login', allowed: 'unauthenticated' }
 	];
 
 	function currentRoute(): Route | null {
@@ -41,11 +47,14 @@
 		let route = currentRoute();
 		let response = await api.getProfile();
 		if (response.response_type == 'Error') {
+			loggedIn = false;
+			links = loggedOutLinks;
 			if (route?.allowed == 'authenticated') {
 				goto('/login');
 			}
 		} else {
 			loggedIn = true;
+			links = loggedInLinks;
 			if (route?.allowed == 'unauthenticated') {
 				goto('/profile');
 			}

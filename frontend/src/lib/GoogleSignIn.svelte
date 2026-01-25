@@ -25,7 +25,7 @@
 			});
 			google.accounts.id.renderButton(
 				googleButtonWrapper,
-				{ theme: 'outline', size: 'large' } // Customization options
+				{ theme: 'outline', size: 'large', width: 1000 } // Customization options
 			);
 			google.accounts.id.prompt(); // Also display the One Tap prompt
 		};
