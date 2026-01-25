@@ -53,7 +53,9 @@ pub fn hash_password(password: &str) -> String {
 pub fn verify_password(hash: &str, password: &str) -> bool {
     let argon2 = Argon2::default();
     let password_hash = PasswordHash::new(hash).expect("Unable to parse hash");
-    argon2.verify_password(password.as_bytes(), &password_hash).is_ok()
+    argon2
+        .verify_password(password.as_bytes(), &password_hash)
+        .is_ok()
 }
 
 pub fn generate_unique_id(length: u8) -> String {
@@ -81,4 +83,35 @@ pub async fn start_session_cleaner(state: Arc<AppState>) {
             tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn generate_random_password() -> String {
+        let mut rng = thread_rng();
+        const CHARACTER_SET: [char; 46] = [
+            'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q',
+            'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '0', '1', '2', '3', '4', '5', '6', '7',
+            '8', '9', '!', '@', '£', '$', '%', '^', '&', '*', '(', ')',
+        ];
+
+        let length = rng.gen_range(8..100);
+
+        (0..length)
+            .map(|_| CHARACTER_SET[rng.gen_range(0..CHARACTER_SET.len())])
+            .collect()
+    }
+
+    #[test]
+    fn test_password_hash() {
+        // Test 3 passwords
+        for _ in 0..3 {
+            let password = generate_random_password();
+            let hash = hash_password(&password);
+            let verify = verify_password(&hash, &password);
+            assert!(verify);
+        }
+    }
 }
